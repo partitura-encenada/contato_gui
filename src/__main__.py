@@ -9,7 +9,6 @@ from qasync import QApplication, QEventLoop
 class AppLayout(QVBoxLayout):
     def __init__(self, parent = None):
         super().__init__(parent)
-
         # Init layout
         self.gyro_display = GyroDisplay()
         self.addWidget = self.gyro_display
