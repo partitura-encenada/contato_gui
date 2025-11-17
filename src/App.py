@@ -1,75 +1,108 @@
+# Appv2.py — simplified MIDI sending: send last 3 bytes from BLE MIDI notifications
+# over python-rtmidi (no wrappers, no parsing). Other features retained.
+
+import os
 import sys
 import math
 import json
+import asyncio
+
 from PyQt6.QtCore import Qt, QPointF, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QFrame, QPushButton, QComboBox,
     QLabel, QSpinBox, QVBoxLayout, QHBoxLayout, QDialog,
-    QGridLayout, QFileDialog, QToolTip, QDial, QSplashScreen
+    QGridLayout, QFileDialog, QToolTip, QDial, QSplashScreen,
+    QListWidget, QListWidgetItem, QMessageBox
 )
+from PySide6.QtGui import QAccessible, QAccessibleEvent
 from PyQt6.QtGui import QPainter, QPen, QColor, QPixmap, QPainterPath, QTransform, QIcon, QFont
-import asyncio
-from qasync import QApplication, QEventLoop, asyncSlot
-from Player import Player # Classe de interação MIDI com o loopMIDI
-from bleak import BleakClient, BleakScanner # biblioteca de BLE
+from qasync import QApplication as QAsyncApplication, QEventLoop, asyncSlot
+from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
 
-TOUCH_CHARACTERISTIC_UUID = '62c84a29-95d6-44e4-a13d-a9372147ce21'
-GYRO_CHARACTERISTIC_UUID = '9b7580ed-9fc2-41e7-b7c2-f63de01f0692'
-ACCEL_CHARACTERISTIC_UUID = 'f62094cf-21a7-4f71-bb3f-5a5b17bb134e' 
+# BLE characteristic UUIDs (from your server)
+SECTIONS_CHAR_UUID = '251beea3-1c81-454f-a9dd-8561ec692ded'
+GYRO_CHARACTERISTIC_UUID = 'f8d968fe-99d7-46c4-a61c-f38093af6ec8'
+TOUCH_CHARACTERISTIC_UUID = '55558523-eca8-4b78-ae20-97ed68c68c26'
+BLE_MIDI_CHAR_UUID = '7772e5db-3868-4112-a1a9-f2669d106bf3'
 
 PRIMARY_COLOR = QColor(100, 180, 255)
+PORT_INDEX = 0  # send to port 0 (Microsoft GS Wavetable Synth on Windows)
 
+# -------------------------
+# SplashScreen (restored)
+# -------------------------
 class SplashScreen(QSplashScreen):
     def __init__(self):
-        pixmap = QPixmap(400, 200)
-        pixmap.fill(Qt.GlobalColor.white)
+        max_size = 500
+        image_path = os.path.join(os.path.dirname(__file__), "splash.png")
+        if not os.path.exists(image_path):
+            pm = QPixmap(400, 240)
+            pm.fill(Qt.GlobalColor.white)
+            p = QPainter(pm)
+            p.setPen(QPen(QColor(100, 100, 120)))
+            font = QFont()
+            font.setPointSize(18)
+            p.setFont(font)
+            p.drawText(pm.rect(), Qt.AlignmentFlag.AlignCenter, "Contato")
+            p.end()
+            super().__init__(pm)
+            return
+
+        pixmap = QPixmap(image_path)
+        if pixmap.width() > max_size or pixmap.height() > max_size:
+            pixmap = pixmap.scaled(
+                max_size, max_size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
         super().__init__(pixmap)
-        self.setFont(QFont("Arial", 18, QFont.Weight.Bold))
 
-    def drawContents(self, painter):
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.GlobalColor.black)
-        painter.setFont(QFont("Arial", 28, QFont.Weight.Bold))
-        painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "Contato\npartitura encenada")
+# -------------------------
+# Note <-> MIDI conversions
+# -------------------------
+_NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+def midi_to_name(midi_number: int) -> str:
+    try:
+        m = int(midi_number)
+    except Exception:
+        return "C3"
+    if m < 0: m = 0
+    note = _NOTE_NAMES[m % 12]
+    octave = (m // 12) - 1
+    octave = max(1, min(5, octave))
+    return f"{note}{octave}"
+
+def name_to_midi(name: str) -> int:
+    if not isinstance(name, str) or len(name) < 2:
+        return 60
+    i = 1
+    if len(name) >= 2 and name[1] == '#':
+        i = 2
+    note_part = name[:i]
+    octave_part = name[i:]
+    try:
+        note_index = _NOTE_NAMES.index(note_part)
+    except Exception:
+        note_index = 0
+    try:
+        octave = int(octave_part)
+    except Exception:
+        octave = 3
+    midi = (octave + 1) * 12 + note_index
+    return max(0, min(127, midi))
+
 # ---------------------------------------------------------
-# Small logarithmic dial
+# UI widget classes (semicircle, combos, etc.)
 # ---------------------------------------------------------
-class LogDial(QDial):
-    """Small QDial with logarithmic scaling (0.5–10) and tooltip feedback."""
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setRange(0, 100)
-        self.setValue(50)
-        self.setNotchesVisible(True)
-        self.setFixedSize(30, 30)
-        self.setToolTip(f"{self.get_log_value():.2f}")
-        self.valueChanged.connect(self.show_value)
-
-    def get_log_value(self):
-        # Map 0–100 linearly to logarithmic 0.5–10 range
-        return 0.5 * (10 ** (self.value() / 100 * math.log10(20)))
-
-    def show_value(self):
-        val = self.get_log_value()
-        QToolTip.showText(self.mapToGlobal(self.rect().center()), f"{val:.2f}", self)
-        self.setToolTip(f"{val:.2f}")
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Up:
-            self.setValue(min(self.value() + 1, self.maximum()))
-        elif event.key() == Qt.Key.Key_Down:
-            self.setValue(max(self.value() - 1, self.minimum()))
-        else:
-            super().keyPressEvent(event)
-
-
 class ToggleEnterComboBox(QComboBox):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+    def __init__(self, parent = None):
+        super().__init__(parent)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setFixedWidth(48)
+        # self.setAccessibleName("Teste")
+        self.setAccessibleDescription("Teste")
         self.setStyleSheet(f"""
             QComboBox {{
                 background: #f8f8f8;
@@ -104,81 +137,32 @@ class ToggleEnterComboBox(QComboBox):
         else:
             super().keyPressEvent(event)
 
-
-# ---------------------------------------------------------
-# Simple toggle button (Left/Right)
-# ---------------------------------------------------------
-class ToggleButton(QPushButton):
-    def __init__(self, text_left="Esquerda", text_right="Direita", parent=None):
-        super().__init__(text_left, parent)
-        self.text_left = text_left
-        self.text_right = text_right
-        self.checked = False
-        self.updateStyle()
-        self.clicked.connect(self.toggleState)
-
-    def toggleState(self):
-        self.checked = not self.checked
-        self.updateStyle()
-
-    def updateStyle(self):
-        if self.checked:
-            text, bg, border = self.text_right, "#cce4ff", "#3388ff"
-        else:
-            text, bg, border = self.text_left, "#f0f0f0", "#cccccc"
-        self.setText(text)
-        self.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {bg};
-                border: 1px solid {border};
-                border-radius: 8px;
-                padding: 4px 12px;
-                min-width: 80px;
-                font-size: 12px;
-            }}
-            QPushButton:hover {{
-                background-color: #e0e0e0;
-            }}
-        """)
-
-
-# ---------------------------------------------------------
-# Semicircle Widget
-# ---------------------------------------------------------
 class SemicircleSectionWidget(QFrame):
-    instrumentChanged = pyqtSignal(int, str)  # index, name
+    instrumentChanged = pyqtSignal(int, str)
     notesCached = pyqtSignal(list)
+
     def __init__(self, sections=6, ticks=30, parent=None):
         super().__init__(parent)
         self.setMinimumSize(350, 450)
-
         self.margin = 30
         self.sections = sections
         self.ticks = ticks
         self.tick_long = 14
         self.tick_short = 8
 
-        self.tick_positions = []
         self.cached_notes = []
         self.gyro_value = 0
         self.selected_tick = 0
         self.selected_section = 0
         self.touch_value = True
-        # Pulse animation
         self.pulse_phase = 0.0
         self.pulse_timer = QTimer(self)
         self.pulse_timer.timeout.connect(self.updatePulse)
         self.pulse_timer.start(30)
 
-        # Notes
-        self.notes = [
-            f"{note}{octave}"
-            for octave in range(1, 6)
-            for note in ["C", "C#", "D", "D#", "E", "F", "F#",
-                         "G", "G#", "A", "A#", "B"]
-        ]
+        self.notes = [f"{note}{octave}" for octave in range(1,6) for note in
+                      ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]]
 
-        # Instruments
         self.instruments = [
             ("🎹", "Acoustic Grand Piano"), ("🎼", "Bright Acoustic Piano"),
             ("🎵", "Electric Grand Piano"), ("🎶", "Honky-tonk Piano"),
@@ -191,28 +175,38 @@ class SemicircleSectionWidget(QFrame):
         ]
         self.current_instrument_index = 0
 
-        # Center instrument button
         icon, _ = self.instruments[self.current_instrument_index]
         self.center_button = QPushButton(icon, self)
+        self.center_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.center_button.setFixedSize(90, 90)
-        self.center_button.setStyleSheet("""
-            QPushButton {
+        self.center_button.setStyleSheet(f"""
+            QPushButton {{
                 border-radius: 45px;
                 font-size: 32px;
                 background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
                                             stop:0 #ffffff, stop:1 #e6e6e6);
                 border: 2px solid #bfbfbf;
-            }
-            QPushButton:hover { background: #f2f2f2; }
-            QPushButton:pressed { background: #dcdcdc; }
+            }}
+            QPushButton:hover {{
+                background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+                                            stop:0 #f2f2f2, stop:1 #dcdcdc);
+            }}
+            QPushButton:focus {{
+                background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+                                            stop:0 #f0f8ff, stop:1 #dcefff);
+                border: 2px solid {PRIMARY_COLOR.name()};
+            }}
+            QPushButton:pressed {{
+                background: #d0e6ff;
+                border: 2px solid {PRIMARY_COLOR.name()};
+            }}
         """)
         self.center_button.clicked.connect(self.showInstrumentSelector)
 
-        # Combos
         self.combos = []
         self.createCombos()
 
-        # Hand icon
+        # small hand icon
         self.hand_icon = QPixmap(20, 20)
         self.hand_icon.fill(Qt.GlobalColor.transparent)
         p = QPainter(self.hand_icon)
@@ -238,7 +232,7 @@ class SemicircleSectionWidget(QFrame):
             self.update()
 
     def updateTouch(self, touch):
-        if touch != self.touch_value:   
+        if touch != self.touch_value:
             self.touch_value = touch
             self.update()
 
@@ -261,14 +255,30 @@ class SemicircleSectionWidget(QFrame):
         self.cacheCombos()
 
     def cacheCombos(self):
-        """Cache current ComboBox states into a list and emit update."""
         self.cached_notes = [combo.currentText() for combo in self.combos]
-        print('emit')
         self.notesCached.emit(self.cached_notes)
 
     def setSections(self, count):
+        count = int(count)
+        old_notes = [c.currentText() for c in getattr(self, "combos", [])]
         self.sections = count
-        self.createCombos()
+        if count <= len(old_notes):
+            new_notes = old_notes[:count]
+        else:
+            new_notes = old_notes + ["C3"] * (count - len(old_notes))
+        for combo in getattr(self, "combos", []):
+            combo.deleteLater()
+        self.combos = []
+        for note in new_notes:
+            combo = ToggleEnterComboBox(self)
+            combo.addItems(self.notes)
+            combo.setCurrentText(note)
+            combo.setFixedWidth(60)
+            combo.show()
+            combo.currentTextChanged.connect(self.cacheCombos)
+            self.combos.append(combo)
+        self.updateComboboxPositions()
+        self.cacheCombos()
         self.update()
 
     def resizeEvent(self, event):
@@ -283,10 +293,8 @@ class SemicircleSectionWidget(QFrame):
         r = min((h / 2) - self.margin, (w - cx) - self.margin)
         section_angle = math.pi / self.sections
         start_ang = -math.pi / 2
-
         bw, bh = self.center_button.width(), self.center_button.height()
         self.center_button.move(int(cx - bw / 2), int(cy - bh / 2))
-
         for i, combo in enumerate(self.combos):
             mid = start_ang + section_angle * (i + 0.5)
             rr = r * 0.8
@@ -294,38 +302,10 @@ class SemicircleSectionWidget(QFrame):
             y = cy + rr * math.sin(mid) - combo.height() / 2
             combo.move(int(x), int(y))
 
-    # def mousePressEvent(self, event):
-    #     if event.button() != Qt.MouseButton.LeftButton:
-    #         return super().mousePressEvent(event)
-
-    #     x, y = event.position().x(), event.position().y()
-    #     cx, cy = self.width() / 2 - 60, self.height() / 2
-    #     r = min((self.height() / 2) - self.margin, (self.width() - cx) - self.margin)
-    #     dx, dy = x - cx, y - cy
-    #     angle = math.atan2(dy, dx)
-
-    #     # Tick selection
-    #     for i, t in self.tick_positions:
-    #         tx = cx + r * math.cos(t)
-    #         ty = cy + r * math.sin(t)
-    #         if math.hypot(x - tx, y - ty) < 10:
-    #             self.selected_tick = i
-    #             self.update()
-    #             return
-
-    #     # Section selection
-    #     if -math.pi / 2 <= angle <= math.pi / 2 and dx > 0:
-    #         section_angle = math.pi / self.sections
-    #         idx = int((angle + math.pi / 2) / section_angle)
-    #         if 0 <= idx < self.sections:
-    #             self.selected_section = idx
-    #             self.update()
-
     def showInstrumentSelector(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Select Instrument")
         dialog.setModal(True)
-        dialog.setStyleSheet("background-color: #f8f8f8;")
         grid = QGridLayout(dialog)
         grid.setSpacing(12)
         grid.setContentsMargins(20, 20, 20, 20)
@@ -346,7 +326,7 @@ class SemicircleSectionWidget(QFrame):
         self.current_instrument_index = index
         icon, name = self.instruments[index]
         self.center_button.setText(icon)
-        self.instrumentChanged.emit(index, name)  # 🔔 Notify MainWindow
+        self.instrumentChanged.emit(index, name)
         if dialog:
             dialog.accept()
 
@@ -358,38 +338,25 @@ class SemicircleSectionWidget(QFrame):
         r = min((h / 2) - self.margin, (w - cx) - self.margin)
         section_angle = math.pi / self.sections
         start_ang, end_ang = -math.pi / 2, math.pi / 2
-        self.tick_positions = []
 
-        # Draw ticks
+        # Draw ticks & dividers (same as before)
         for i in range(self.ticks + 1):
             t = start_ang + (end_ang - start_ang) * (i / self.ticks)
-            self.tick_positions.append((i, t))
             ox, oy = cx + r * math.cos(t), cy + r * math.sin(t)
             tl = self.tick_long if i % 5 == 0 else self.tick_short
             ix, iy = cx + (r - tl) * math.cos(t), cy + (r - tl) * math.sin(t)
-
-            # --- Selected tick -> draw hand icon ---
             if i == self.selected_tick:
                 ang_deg = math.degrees(t)
-                rotated = self.hand_icon.transformed(
-                    QTransform().rotate(ang_deg),
-                    Qt.TransformationMode.SmoothTransformation
-                )
-
-                # Draw the pointing hand at the tick location
+                rotated = self.hand_icon.transformed(QTransform().rotate(ang_deg),
+                                                     Qt.TransformationMode.SmoothTransformation)
                 icon_r = r + 10
                 ix = cx + icon_r * math.cos(t) - rotated.width() / 2
                 iy = cy + icon_r * math.sin(t) - rotated.height() / 2
                 painter.drawPixmap(int(ix), int(iy), rotated)
-                continue  # Skip normal tick drawing for this one
-
-            # --- Normal tick drawing ---
-            highlight = (
-                self.selected_section >= 0 and
-                self.selected_section * section_angle <= t + math.pi / 2 <=
-                (self.selected_section + 1) * section_angle and self.touch_value
-            )
-
+                continue
+            highlight = (self.selected_section >= 0 and
+                         self.selected_section * section_angle <= t + math.pi / 2 <=
+                         (self.selected_section + 1) * section_angle and self.touch_value)
             if highlight:
                 pulse = 0.5 + 0.5 * math.sin(self.pulse_phase)
                 color = QColor(
@@ -400,24 +367,20 @@ class SemicircleSectionWidget(QFrame):
                 pen = QPen(color, 3)
             else:
                 pen = QPen(QColor(60, 60, 60), 2)
-
             painter.setPen(pen)
             painter.drawLine(QPointF(ix, iy), QPointF(ox, oy))
 
-        # --- Draw "0º" label beside the center tick ---
-        center_t = 0  # center tick angle (vertical)
-        cx, cy = w / 2 - 60, h / 2
-        r_label = r + 16  # position label slightly outside radius
+        # "0º" label
+        center_t = 0
+        r_label = r + 16
         label_x = cx + r_label * math.cos(center_t)
         label_y = cy + r_label * math.sin(center_t)
-
-        painter.setPen(QColor(100, 100, 120, 150))  # faded gray-blue tone
+        painter.setPen(QColor(100, 100, 120, 150))
         font = painter.font()
         font.setPointSize(9)
         painter.setFont(font)
         painter.drawText(int(label_x - 8), int(label_y + 4), "0º")
-        
-        # Dividers
+
         for i in range(self.sections + 1):
             t = start_ang + section_angle * i
             inner_r = r * 0.3
@@ -438,31 +401,43 @@ class SemicircleSectionWidget(QFrame):
             painter.setPen(pen)
             painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
 
-
 # ---------------------------------------------------------
 # Main Window
 # ---------------------------------------------------------
 class MainWindow(QWidget):
-    def __init__(self):
+    def __init__(self, selected_device=None):
         super().__init__()
         self.setWindowTitle("Gyro Display")
-        self.player = Player()
-        self.ble_init()
+        self.selected_device = selected_device
+        self.ble_client = None
+        self.midi_out = None  # rtmidi MidiOut instance if available
+        self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), "icon.ico")))
 
-        self.resize(460, 640)
+        # Try opening python-rtmidi port 0 immediately (no wrappers)
+        try:
+            import rtmidi
+            self._rtmidi = rtmidi  # keep module ref
+            midiout = rtmidi.MidiOut()
+            ports = midiout.get_ports()
+            if not ports:
+                print("RTMIDI: no output ports available.")
+                self.midi_out = None
+            else:
+                idx = max(0, min(PORT_INDEX, len(ports)-1))
+                midiout.open_port(idx)
+                self.midi_out = midiout
+                print(f"RTMIDI: opened port {idx}: {ports[idx]}")
+        except Exception as e:
+            print("RTMIDI not available or failed to open port 0:", e)
+            self.midi_out = None
 
-        # Topbar
-        save_btn = QPushButton()
-        save_btn.setIcon(QIcon.fromTheme("document-save"))
-        save_btn.setToolTip("Save Setup")
+        # Topbar: Salvar / Abrir / Desconectar
+        save_btn = QPushButton("Salvar")
+        load_btn = QPushButton("Abrir")
+        disconnect_btn = QPushButton("Desconectar")
 
-        load_btn = QPushButton()
-        load_btn.setIcon(QIcon.fromTheme("document-open"))
-        load_btn.setToolTip("Load Setup")
-
-        for b in (save_btn, load_btn):
-            b.setFixedSize(22, 22)
-            b.setIconSize(b.size() * 0.8)
+        for b in (save_btn, load_btn, disconnect_btn):
+            b.setFixedSize(90, 26)
             b.setStyleSheet("""
                 QPushButton {
                     border: 1px solid #b0b0b0;
@@ -473,41 +448,34 @@ class MainWindow(QWidget):
             """)
         save_btn.clicked.connect(self.saveSetup)
         load_btn.clicked.connect(self.loadSetup)
+        disconnect_btn.clicked.connect(lambda: asyncio.create_task(self.disconnect_and_select()))
 
         topbar = QHBoxLayout()
-        topbar.setContentsMargins(0, 4, 6, 4)  # ⬅️ Reduced left padding from 6 → 4
-        topbar.setSpacing(4)                   # ⬅️ Slightly closer buttons
+        topbar.setContentsMargins(6, 6, 6, 6)
+        topbar.setSpacing(6)
         topbar.addWidget(save_btn)
         topbar.addWidget(load_btn)
         topbar.addStretch()
+        topbar.addWidget(disconnect_btn)
 
         topbar_frame = QFrame()
         topbar_frame.setLayout(topbar)
-        topbar_frame.setFixedHeight(34)  # ⬅️ Slightly slimmer bar
+        topbar_frame.setFixedHeight(40)
         topbar_frame.setStyleSheet("background:#f4f4f4;border-bottom:1px solid #bfbfbf;")
 
-        # Semicircle
         self.selector = SemicircleSectionWidget(sections=6, ticks=60)
-        self.selector.instrumentChanged.connect(self.updateInstrumentLabel)
-        self.selector.notesCached.connect(self.updateNotesLabel)
-        self.player.cached_notes = self.selector.cached_notes
+        self.selector.instrumentChanged.connect(self.onInstrumentChanged)
+        self.selector.notesCached.connect(self.on_notes_cached)
 
         divider = QFrame()
         divider.setFrameShape(QFrame.Shape.HLine)
         divider.setStyleSheet("color:#cfcfcf;")
 
-        # Controls
         notas_label = QLabel("Notas")
         self.notas_spin = QSpinBox()
         self.notas_spin.setRange(1, 24)
         self.notas_spin.setValue(self.selector.sections)
         self.notas_spin.valueChanged.connect(self.selector.setSections)
-
-        sens_label = QLabel("Sensibilidade (Acelerômetro)")
-        self.sens_dial = LogDial()
-
-        side_label = QLabel("Esquerda / Direita")
-        self.side_toggle = ToggleButton()
 
         def make_row(label, widget):
             row = QHBoxLayout()
@@ -519,8 +487,6 @@ class MainWindow(QWidget):
 
         controls = QVBoxLayout()
         controls.addLayout(make_row(notas_label, self.notas_spin))
-        controls.addLayout(make_row(sens_label, self.sens_dial))
-        controls.addLayout(make_row(side_label, self.side_toggle))
         controls.addStretch()
 
         layout = QVBoxLayout()
@@ -528,114 +494,298 @@ class MainWindow(QWidget):
         layout.addWidget(self.selector, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(divider)
         layout.addLayout(controls)
+        # Seleção de porta MIDI e canal
+        midi_hbox = QHBoxLayout()
+        midi_hbox.setContentsMargins(8, 6, 8, 6)
+        midi_hbox.setSpacing(8)
+
+        midi_label = QLabel("Saída MIDI:")
+        self.midi_output_combo = QComboBox()
+        self.channel_combo = QComboBox()
+        self.channel_combo.addItems([str(i) for i in range(1, 17)])
+
+        try:
+            import rtmidi
+            temp = rtmidi.MidiOut()
+            ports = temp.get_ports()
+            if ports:
+                self.midi_output_combo.addItems(ports)
+            else:
+                self.midi_output_combo.addItem("Nenhuma porta")
+        except Exception:
+            self.midi_output_combo.addItem("rtmidi indisponível")
+            ports = []
+
+        midi_hbox.addWidget(midi_label)
+        midi_hbox.addWidget(self.midi_output_combo)
+        midi_hbox.addStretch()
+        midi_hbox.addWidget(QLabel("Canal:"))
+        midi_hbox.addWidget(self.channel_combo)
+        layout.addLayout(midi_hbox)
+
+        def _on_midi_port_changed(idx):
+            try:
+                if getattr(self, "midi_out", None):
+                    try:
+                        self.midi_out.close_port()
+                    except Exception:
+                        pass
+                    self.midi_out = None
+
+                import rtmidi
+                midiout = rtmidi.MidiOut()
+                ports = midiout.get_ports()
+
+                if ports and 0 <= idx < len(ports):
+                    midiout.open_port(idx)
+                    self.midi_out = midiout
+                    print(f"Porta MIDI alterada → {ports[idx]}")
+            except Exception as e:
+                print("Erro ao alterar porta MIDI:", e)
+
+        self.midi_output_combo.currentIndexChanged.connect(_on_midi_port_changed)
         self.setLayout(layout)
 
-    @asyncSlot()
-    async def ble_init(self):
-        print('Scan')
-        def bleak_gyro_callback(characteristic: BleakGATTCharacteristic, data: bytearray): 
-            self.selector.updateGyro(int.from_bytes(data, 'little', signed=True))
-            self.player.update(self.selector.selected_section)
-        def bleak_accel_callback(characteristic: BleakGATTCharacteristic, data: bytearray):  
-            self.player.accel = int.from_bytes(data, 'little', signed=True)
-        def bleak_touch_callback(characteristic: BleakGATTCharacteristic, data: bytearray):
-            touch = int.from_bytes(data, 'little', signed=False)
-            self.selector.updateTouch(touch)
-            self.player.touch = touch
-        while True:
-            device = await BleakScanner.find_device_by_name("Contato")
-            if device is None:
-                print("Nenhum dispositivo encontrado, aguarde a procura novamente")
-                await asyncio.sleep(30)
-                continue
+        # If device preselected, connect immediately
+        if self.selected_device:
+            asyncio.create_task(self.ble_connect_to_selected(self.selected_device))
 
+    async def ble_connect_to_selected(self, device):
+        try:
             disconnect_event = asyncio.Event()
-                
-            print("Conectando...")
-            async with BleakClient(
-                device, disconnected_callback=lambda c: disconnect_event.set()) as client:
-                print("Conectado")
-                await client.start_notify(GYRO_CHARACTERISTIC_UUID, bleak_gyro_callback)
-                await client.start_notify(ACCEL_CHARACTERISTIC_UUID, bleak_accel_callback)
-                await client.start_notify(TOUCH_CHARACTERISTIC_UUID, bleak_touch_callback)
+            async with BleakClient(device, disconnected_callback=lambda c: disconnect_event.set()) as client:
+                self.ble_client = client
+                print(f"Connected to {device.name} / {device.address}")
+
+                # Read SECTIONS char and set combos
+                try:
+                    sec_bytes = await client.read_gatt_char(SECTIONS_CHAR_UUID)
+                    if sec_bytes is not None:
+                        n_sections = len(sec_bytes)
+                        self.selector.setSections(n_sections)
+                        for i, b in enumerate(sec_bytes):
+                            name = midi_to_name(b)
+                            if i < len(self.selector.combos):
+                                self.selector.combos[i].setCurrentText(name)
+                        self.selector.cacheCombos()
+                except Exception as e:
+                    print("Could not read SECTIONS char:", e)
+
+                # start MIDI notify -> forward to port 0 (last 3 bytes)
+                try:
+                    await client.start_notify(BLE_MIDI_CHAR_UUID, self.ble_midi_callback)
+                    print("Subscribed to BLE-MIDI notifications.")
+                except Exception as e:
+                    print("Could not start BLE-MIDI notify:", e)
+
+                try:
+                    await client.start_notify(GYRO_CHARACTERISTIC_UUID, self.ble_gyro_callback)
+                except Exception as e:
+                    print("Could not start gyro notify:", e)
+
+                try:
+                    await client.start_notify(TOUCH_CHARACTERISTIC_UUID, self.ble_touch_callback)
+                except Exception as e:
+                    print("Could not start touch notify:", e)
+
+                # Wait until disconnected
                 await disconnect_event.wait()
-                print("Desconectado")
+                print("Device disconnected")
+                self.ble_client = None
+        except Exception as e:
+            print("BLE connect error:", e)
+            self.ble_client = None
+
+    def ble_gyro_callback(self, characteristic: BleakGATTCharacteristic, data: bytearray):
+        try:
+            val = int.from_bytes(data, 'little', signed=True)
+        except Exception:
+            val = 0
+        self.selector.updateGyro(val)
+
+    def ble_touch_callback(self, characteristic: BleakGATTCharacteristic, data: bytearray):
+        try:
+            val = int.from_bytes(data, 'little', signed=False)
+        except Exception:
+            val = 0
+        self.selector.updateTouch(bool(val))
+
+    def ble_midi_callback(self, characteristic: BleakGATTCharacteristic, data: bytearray):
+        payload = bytes(data)
+
+        if len(payload) >= 3:
+            msg = payload[-3:]
+        else:
+            msg = payload
+
+        if not msg:
+            return
+
+        if self.midi_out is None:
+            print("RTMIDI não aberto — não é possível enviar MIDI.")
+            return
+
+        try:
+            self.midi_out.send_message(list(msg))
+        except Exception as e:
+            print("Erro ao enviar MIDI (rtmidi):", e, "bytes:", list(msg))
+
+
+    @asyncSlot(int, str)
+    async def onInstrumentChanged(self, index: int, name: str):
+        prog = max(0, min(127, int(index)))
+
+        # Canal MIDI selecionado (1–16)
+        ch = 0
+        try:
+            if hasattr(self, "channel_combo") and self.channel_combo is not None:
+                ch = max(0, min(15, int(self.channel_combo.currentText()) - 1))
+        except Exception:
+            ch = 0
+
+        print(f"Instrumento alterado → {name} (programa {prog}) no canal {ch+1}")
+
+        if getattr(self, "midi_out", None) is None:
+            print("RTMIDI não está aberto — nada a enviar.")
+            return
+
+        try:
+            status = 0xC0 | (ch & 0x0F)
+            self.midi_out.send_message([status, prog])
+        except Exception as e:
+            print("Erro ao enviar Program Change via rtmidi:", e)
+
+
+    def on_notes_cached(self, notes_list):
+        asyncio.create_task(self._async_write_sections(notes_list))
+
+    async def _async_write_sections(self, notes_list):
+        if not self.ble_client or not getattr(self.ble_client, "is_connected", False):
+            return
+        try:
+            midi_bytes = bytes([name_to_midi(n) for n in notes_list])
+            await self.ble_client.write_gatt_char(SECTIONS_CHAR_UUID, midi_bytes, response=True)
+            print("Wrote sections to server:", list(midi_bytes))
+        except Exception as e:
+            print("Error writing sections to server:", e)
+
+    async def disconnect_and_select(self):
+        try:
+            if self.ble_client and getattr(self.ble_client, "is_connected", False):
+                try:
+                    await self.ble_client.disconnect()
+                except Exception:
+                    pass
+                self.ble_client = None
+        except Exception:
+            pass
+
+        device = await choose_device_before_opening(parent=self)
+        if device:
+            asyncio.create_task(self.ble_connect_to_selected(device))
+        else:
+            print("Device selection cancelled (quiet).")
 
     def saveSetup(self):
         path, _ = QFileDialog.getSaveFileName(self, "Salvar Configuração", "", "JSON Files (*.json)")
         if not path:
             return
-
         data = {
             "sections": self.selector.sections,
             "instrument": self.selector.current_instrument_index,
             "notes": [combo.currentText() for combo in self.selector.combos],
-            "sensitivity": self.sens_dial.get_log_value(),
-            "side": "right" if self.side_toggle.checked else "left"
         }
-
         with open(path, "w") as f:
             json.dump(data, f, indent=2)
 
-
     def loadSetup(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Carregar Configuração", "", "JSON Files (*.json)")
+        path, _ = QFileDialog.getOpenFileName(self, "Abrir Configuração", "", "JSON Files (*.json)")
         if not path:
             return
-
         with open(path, "r") as f:
             data = json.load(f)
-
-        # --- Update section count ---
         self.selector.setSections(data.get("sections", 6))
-
-        # --- Update comboboxes ---
         for combo, note in zip(self.selector.combos, data.get("notes", [])):
             combo.setCurrentText(note)
-        self.selector.cacheCombos()  # refresh cache
+        self.selector.cacheCombos()
+        instr = data.get("instrument", 0)
+        self.selector.setInstrument(instr, None)
 
-        # --- Update instrument ---
-        self.selector.setInstrument(data.get("instrument", 0), None)
+# -------------------------
+# Device selector (async, keyboard navigable, silent cancel)
+# -------------------------
+async def choose_device_before_opening(parent=None):
+    devices = await BleakScanner.discover(timeout=1.0)
+    dlg = QDialog(parent)
+    dlg.setWindowTitle("Selecionar dispositivo BLE")
+    dlg.setModal(True)
+    layout = QVBoxLayout(dlg)
+    layout.addWidget(QLabel("Selecione o dispositivo 'Contato' para conectar:"))
+    listw = QListWidget(dlg)
+    listw.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+    listw.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+    for d in devices:
+        display = f"{d.name or 'Unknown'} — {d.address}"
+        item = QListWidgetItem(display)
+        item.setData(Qt.ItemDataRole.UserRole, d)
+        listw.addItem(item)
+    layout.addWidget(listw)
+    hl = QHBoxLayout()
+    btn_ok = QPushButton("Conectar")
+    btn_cancel = QPushButton("Cancelar")
+    hl.addStretch()
+    hl.addWidget(btn_ok)
+    hl.addWidget(btn_cancel)
+    layout.addLayout(hl)
 
-        # --- Update sensitivity dial ---
-        sens_value = data.get("sensitivity", 1.0)
-        # Find approximate dial position for the saved log value
-        import math
-        linear_value = min(max(int(math.log10(sens_value / 0.5) / math.log10(20) * 100), 0), 100)
-        self.sens_dial.setValue(linear_value)
-
-        # --- Update toggle ---
-        if data.get("side", "left") == "right":
-            if not self.side_toggle.checked:
-                self.side_toggle.toggleState()
+    result = {'device': None}
+    def on_ok():
+        sel = listw.currentItem()
+        if sel:
+            result['device'] = sel.data(Qt.ItemDataRole.UserRole)
+            dlg.accept()
         else:
-            if self.side_toggle.checked:
-                self.side_toggle.toggleState()
+            dlg.reject()
+    def on_cancel():
+        dlg.reject()
 
-    def updateInstrumentLabel(self, index, name):
-        """Update label when the instrument changes."""
-        self.player.change_program(index)
+    btn_ok.clicked.connect(on_ok)
+    btn_cancel.clicked.connect(on_cancel)
 
-    def updateNotesLabel(self, notes_list):
-        print('c')
-        self.player.cached_notes = notes_list
-# ---------------------------------------------------------
-# Run
-# ---------------------------------------------------------
+    listw.setCurrentRow(0)
+    listw.setFocus()
+
+    if dlg.exec():
+        return result['device']
+    return None
+
+# -------------------------
+# App entrypoint (Option A: splash -> device selector -> main window)
+# -------------------------
 async def main(app):
     app_close_event = asyncio.Event()
     app.aboutToQuit.connect(app_close_event.set)
-    def after_splash():
-        splash.close()
-        win.show()
 
     splash = SplashScreen()
     splash.show()
-    win = MainWindow()
-    win.setWindowTitle('Contato GUI')
-    QTimer.singleShot(2000, after_splash)
+    await asyncio.sleep(0.5)
+
+    selected = await choose_device_before_opening(None)
+    splash.close()
+    if not selected:
+        print("No device selected — exiting quietly.")
+        app.quit()
+        return
+
+    win = MainWindow(selected_device=selected)
+    win.setWindowTitle("Contato GUI")
+    win.show()
+
     await app_close_event.wait()
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    asyncio.run(main(app), loop_factory=QEventLoop)
+    qapp = QAsyncApplication(sys.argv)
+    loop = QEventLoop(qapp)
+    asyncio.set_event_loop(loop)
+    with loop:
+        loop.run_until_complete(main(qapp))
