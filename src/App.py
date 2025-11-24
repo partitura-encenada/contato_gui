@@ -1,17 +1,14 @@
-# Contato GUI - cliente BLE-MIDI (pt-BR). Uses python-rtmidi (rtmidi) exclusively.
-
 import os
 import sys
 import math
 import json
 import asyncio
-from functools import partial
 
-from PyQt6.QtCore import Qt, QPointF, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QPointF, QTimer, pyqtSignal, QEvent
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QFrame, QPushButton, QComboBox,
     QLabel, QSpinBox, QVBoxLayout, QHBoxLayout, QDialog,
-    QGridLayout, QFileDialog, QListWidget, QListWidgetItem, QSplashScreen
+    QGridLayout, QFileDialog, QListWidget, QListWidgetItem, QSplashScreen, QDial
 )
 from PyQt6.QtGui import (
     QPainter, QPen, QColor, QPixmap, QPainterPath,
@@ -19,19 +16,14 @@ from PyQt6.QtGui import (
 )
 
 from qasync import QApplication as QAsyncApplication, QEventLoop, asyncSlot
-
+import rtmidi
 from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
 
-# Use only python-rtmidi (rtmidi)
-try:
-    import rtmidi
-except Exception as e:
-    rtmidi = None
-    print("Aviso: python-rtmidi (rtmidi) não disponível:", e)
-
 SECTIONS_CHAR_UUID = '251beea3-1c81-454f-a9dd-8561ec692ded'
 GYRO_CHARACTERISTIC_UUID = 'f8d968fe-99d7-46c4-a61c-f38093af6ec8'
+ACCEL_CHARACTERISTIC_UUID = 'd3b8a1f1-9c4f-4c9b-8f1e-abcdef123456'
+ACCEL_SENS_CHARACTERISTIC_UUID = 'c7f2b2e2-1a2b-4c3d-9f0a-123456abcdef'
 TOUCH_CHARACTERISTIC_UUID = '55558523-eca8-4b78-ae20-97ed68c68c26'
 CALIBRATE_CHAR_UUID = 'b4d0c9f8-3b9a-4a4e-93f2-2a8c9f5ee7a2'
 BLE_MIDI_CHAR_UUID = '7772e5db-3868-4112-a1a9-f2669d106bf3'
@@ -43,53 +35,33 @@ class SplashScreen(QSplashScreen):
     def __init__(self):
         max_size = 500
         image_path = os.path.join(os.path.dirname(__file__), "splash.png")
-        if not os.path.exists(image_path):
-            pm = QPixmap(400, 240)
-            pm.fill(Qt.GlobalColor.white)
-            p = QPainter(pm)
-            p.setPen(QPen(QColor(100, 100, 120)))
-            font = QFont()
-            font.setPointSize(18)
-            p.setFont(font)
-            p.drawText(pm.rect(), Qt.AlignmentFlag.AlignCenter, "Contato")
-            p.end()
-            super().__init__(pm)
-            return
-
         pix = QPixmap(image_path)
-        if pix.width() > max_size or pix.height() > max_size:
-            pix = pix.scaled(
-                max_size, max_size,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
+        pix = pix.scaled(
+            max_size, max_size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
         super().__init__(pix)
 
-_NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
+NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
 
 def midi_to_name(x):
-    try: x=int(x)
-    except: return "C3"
-    if x<0: x=0
-    note=_NOTE_NAMES[x%12]
+    note=NOTE_NAMES[x%12]
     octave=(x//12)-1
     octave=max(1,min(5,octave))
     return f"{note}{octave}"
 
 def name_to_midi(name):
-    try:
-        if '#' in name[:2]: note=name[:2]; octave=int(name[2:])
-        else: note=name[0]; octave=int(name[1:])
-        idx=_NOTE_NAMES.index(note)
-        return max(0,min(127,(octave+1)*12+idx))
-    except:
-        return 60
+    if '#' in name[:2]: note=name[:2]; octave=int(name[2:])
+    else: note=name[0]; octave=int(name[1:])
+    idx=NOTE_NAMES.index(note)
+    return max(0,min(127,(octave+1)*12+idx))
 
 class ToggleEnterComboBox(QComboBox):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.setFixedWidth(48)
+        self.setFixedWidth(60)
 
         # apply explicit instance stylesheet to ensure it's used across platforms
         style = f"""
@@ -106,10 +78,6 @@ class ToggleEnterComboBox(QComboBox):
                 border:1px solid {PRIMARY_COLOR.name()};
                 background:#e8f4ff; color:#222;
             }}
-            QComboBox QAbstractItemView {{
-                background:#ffffff; border:1px solid #bbb;
-                selection-background-color: {PRIMARY_COLOR.name()};
-            }}
             QComboBox::drop-down {{
                 subcontrol-origin: padding;
             }}
@@ -117,21 +85,12 @@ class ToggleEnterComboBox(QComboBox):
         self.setStyleSheet(style)
 
     def keyPressEvent(self, e):
-        # Robust Enter/Return toggling fallback.
-        if e is None or not hasattr(e, "key"):
-            return super().keyPressEvent(e)
-
         key = e.key()
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            try:
-                view = self.view()
-                if getattr(view, "isVisible", lambda: False)():
-                    self.hidePopup()
-                else:
-                    self.showPopup()
-            except Exception:
-                # any unexpected error -> fallback to default behaviour
-                super().keyPressEvent(e)
+            if getattr(self.view, "isVisible", lambda: False)():
+                self.hidePopup()
+            else:
+                self.showPopup()
         else:
             super().keyPressEvent(e)
 
@@ -139,28 +98,27 @@ class SemicircleSectionWidget(QFrame):
     instrumentChanged = pyqtSignal(int, str)
     notesCached = pyqtSignal(list)
 
-    def __init__(self, sections=6, ticks=30, parent=None):
+    def __init__(self, sections = 6, ticks = 30, parent = None):
         super().__init__(parent)
-        self.setMinimumSize(350, 450)
-        self.margin = 30
+        self.setMinimumSize(400, 400)
+        self.margin = 15
+        self.offset = 80
         self.sections = sections
         self.ticks = ticks
         self.tick_long = 14
         self.tick_short = 8
 
-        self.cached_notes = []
-        self.suppress_emit = False   # <<-- add this line
-        self.gyro_value = 0
-        self.selected_tick = 0
-        self.selected_section = 0
-        self.touch_value = True
+        self.suppress_emit = False  
+        self.gyro = 0
+        self.touch = True
         self.pulse_phase = 0.0
         self.pulse_timer = QTimer(self)
         self.pulse_timer.timeout.connect(self.updatePulse)
         self.pulse_timer.start(30)
 
+        self.cached_notes = []
         self.notes = [f"{note}{octave}" for octave in range(1,6) for note in
-                      ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]]
+                      NOTE_NAMES]
 
         self.instruments = [
             ("🎹","Acoustic Grand Piano"), ("🎼","Bright Acoustic Piano"),
@@ -173,7 +131,6 @@ class SemicircleSectionWidget(QFrame):
             ("⛓️","Tubular Bells"), ("🎶","Dulcimer")
         ]
         self.current_instrument_index = 0
-
         icon, _ = self.instruments[self.current_instrument_index]
         self.center_button = QPushButton(icon, self)
         self.center_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -185,8 +142,7 @@ class SemicircleSectionWidget(QFrame):
             QPushButton:focus {{ border:2px solid {PRIMARY_COLOR.name()}; }}
         """)
         self.center_button.clicked.connect(self.showInstrumentSelector)
-
-        self.combos = []
+        
         self.createCombos()
 
         self.hand_icon = QPixmap(20,20)
@@ -199,16 +155,9 @@ class SemicircleSectionWidget(QFrame):
         pen = QPen(QColor(100,180,255),2)
         p.setPen(pen); p.drawPath(path); p.end()
 
-    def updateGyro(self, gyro):
-        if int(gyro) != self.gyro_value:
-            self.gyro_value = int(max(-89, min(89, gyro)))
-            self.selected_tick = int(((self.gyro_value * math.pi / -180) + math.pi / 2) / (math.pi / self.ticks))
-            self.selected_section = int(((self.gyro_value * math.pi / -180) + math.pi / 2) / (math.pi / self.sections))
-            self.update()
-
     def updateTouch(self, touch):
-        if touch != self.touch_value:
-            self.touch_value = touch
+        if touch != self.touch:
+            self.touch = touch
             self.update()
 
     def updatePulse(self):
@@ -222,9 +171,6 @@ class SemicircleSectionWidget(QFrame):
             combo = ToggleEnterComboBox(self)
             combo.addItems(self.notes)
             combo.setCurrentText("C3")
-            combo.setFixedWidth(60)
-            # ensure instance stylesheet remains applied (some platforms override)
-            combo.setStyleSheet(combo.styleSheet())
             combo.show()
             combo.currentTextChanged.connect(self.cacheCombos)
             self.combos.append(combo)
@@ -232,12 +178,8 @@ class SemicircleSectionWidget(QFrame):
         self.cacheCombos()
 
     def cacheCombos(self, emit=True):
-        """
-        Cache current combo values. If emit is True and suppress_emit is False,
-        emit notesCached. Use emit=False during bulk UI updates to avoid writing back.
-        """
         self.cached_notes = [c.currentText() for c in self.combos]
-        if emit and not getattr(self, "suppress_emit", False):
+        if emit and not self.suppress_emit:
             self.notesCached.emit(self.cached_notes)
 
     def setSections(self, count):
@@ -255,8 +197,6 @@ class SemicircleSectionWidget(QFrame):
             combo = ToggleEnterComboBox(self)
             combo.addItems(self.notes)
             combo.setCurrentText(note)
-            combo.setFixedWidth(60)
-            combo.setStyleSheet(combo.styleSheet())
             combo.show()
             combo.currentTextChanged.connect(self.cacheCombos)
             self.combos.append(combo)
@@ -269,17 +209,17 @@ class SemicircleSectionWidget(QFrame):
         self.updateComboboxPositions()
 
     def updateComboboxPositions(self):
-        if not self.combos: return
         w,h = self.width(), self.height()
-        cx,cy = w/2 - 60, h/2
+        cx,cy = w/2 - self.offset, h/2
         r = min((h/2)-self.margin, (w-cx)-self.margin)
         section_angle = math.pi / self.sections
         start_ang = -math.pi/2
         bw,bh = self.center_button.width(), self.center_button.height()
         self.center_button.move(int(cx-bw/2), int(cy-bh/2))
+
         for i, combo in enumerate(self.combos):
             mid = start_ang + section_angle * (i + 0.5)
-            rr = r * 0.8
+            rr = r * 0.6
             x = cx + rr * math.cos(mid) - combo.width()/2
             y = cy + rr * math.sin(mid) - combo.height()/2
             combo.move(int(x), int(y))
@@ -308,9 +248,11 @@ class SemicircleSectionWidget(QFrame):
     def paintEvent(self, _):
         painter = QPainter(self); painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         w,h = self.width(), self.height()
-        cx,cy = w/2 - 60, h/2
+        cx,cy = w/2 - self.offset, h/2
         r = min((h/2)-self.margin, (w-cx)-self.margin)
         section_angle = math.pi / self.sections
+        selected_tick = int(((self.gyro * math.pi / -180) + math.pi / 2) / (math.pi / self.ticks))
+        selected_section = int(((self.gyro * math.pi / -180) + math.pi / 2) / (math.pi / self.sections))
         start_ang, end_ang = -math.pi/2, math.pi/2
 
         for i in range(self.ticks+1):
@@ -318,7 +260,7 @@ class SemicircleSectionWidget(QFrame):
             ox,oy = cx + r*math.cos(t), cy + r*math.sin(t)
             tl = self.tick_long if i%5==0 else self.tick_short
             ix,iy = cx + (r-tl)*math.cos(t), cy + (r-tl)*math.sin(t)
-            if i == self.selected_tick:
+            if i == selected_tick:
                 ang_deg = math.degrees(t)
                 rotated = self.hand_icon.transformed(QTransform().rotate(ang_deg), Qt.TransformationMode.SmoothTransformation)
                 icon_r = r + 10
@@ -326,7 +268,7 @@ class SemicircleSectionWidget(QFrame):
                 iy = cy + icon_r*math.sin(t) - rotated.height()/2
                 painter.drawPixmap(int(ix), int(iy), rotated)
                 continue
-            highlight = (self.selected_section >=0 and self.selected_section*section_angle <= t + math.pi/2 <= (self.selected_section+1)*section_angle and self.touch_value)
+            highlight = (selected_section >=0 and selected_section * section_angle <= t + math.pi/2 <= (selected_section + 1) * section_angle and self.touch)
             if highlight:
                 pulse = 0.5 + 0.5*math.sin(self.pulse_phase)
                 color = QColor(int(PRIMARY_COLOR.red()*(0.8+0.2*pulse)),
@@ -338,21 +280,19 @@ class SemicircleSectionWidget(QFrame):
             painter.setPen(pen)
             painter.drawLine(QPointF(ix,iy), QPointF(ox,oy))
 
-        center_t = 0
-        r_label = r + 16
-        label_x = cx + r_label*math.cos(center_t)
-        label_y = cy + r_label*math.sin(center_t)
         painter.setPen(QColor(100,100,120,150))
-        f = painter.font(); f.setPointSize(9); painter.setFont(f)
-        painter.drawText(int(label_x-8), int(label_y+4), "0º")
+        f = painter.font(); 
+        f.setPointSize(9); 
+        painter.setFont(f)
+        painter.drawText(int(cx + r + 30), int(cy + 4), "0º")
 
-        for i in range(self.sections+1):
+        for i in range(self.sections + 1):
             t = start_ang + section_angle * i
             inner_r = r * 0.3
             outer_r = r * 0.8
             x1,y1 = cx + inner_r*math.cos(t), cy + inner_r*math.sin(t)
             x2,y2 = cx + outer_r*math.cos(t), cy + outer_r*math.sin(t)
-            if i in (self.selected_section, self.selected_section+1) and self.touch_value:
+            if i in (selected_section, selected_section + 1) and self.touch:
                 pulse = 0.5 + 0.5*math.sin(self.pulse_phase)
                 color = QColor(int(PRIMARY_COLOR.red()*(0.7+0.3*pulse)),
                                int(PRIMARY_COLOR.green()*(0.7+0.3*pulse)),
@@ -368,32 +308,21 @@ class MainWindow(QWidget):
         super().__init__()
         self.selected_device = selected_device
         self.ble_client = None
-        self.midi_out = None
-        self.midi_out_driver = None  # rtmidi.MidiOut object
+        self.midi_out_driver = rtmidi.MidiOut()
+        self.ports = self.midi_out_driver.get_ports()
         self.setWindowTitle("Contato GUI")
-        self.setFixedSize(460, 640)
         self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), "icon.ico")))
 
-        # Attempt to open a midi output port using rtmidi only
-        try:
-            if rtmidi is None:
-                raise RuntimeError("rtmidi not available")
-            self.midi_out_driver = rtmidi.MidiOut()
-            ports = self.midi_out_driver.get_ports()
-            if ports:
-                idx = max(0, min(PORT_INDEX, len(ports)-1))
-                self.midi_out_driver.open_port(idx)
-                self.midi_out = True
-                print(f"rtmidi: porta {idx} aberta: {ports[idx]}")
-            else:
-                print("rtmidi: nenhuma porta de saída disponível.")
-                self.midi_out = None
-        except Exception as e:
-            print("rtmidi não disponível ou falha ao abrir porta:", e)
-            self.midi_out = None
-            self.midi_out_driver = None
+        if self.ports:
+            idx = max(0, min(PORT_INDEX, len(self.ports)-1))
+            self.midi_out_driver.open_port(idx)
+            print(f"rtmidi: porta {idx} aberta: {self.ports[idx]}")
+        else:
+            print("rtmidi: nenhuma porta de saída disponível.")
 
-        # Topbar
+        topbar = QHBoxLayout()
+        topbar.setContentsMargins(6,6,6,6)
+        topbar.setSpacing(6)
         save_btn = QPushButton("Salvar")
         load_btn = QPushButton("Abrir")
         calibrate_btn = QPushButton("Calibrar")
@@ -404,10 +333,6 @@ class MainWindow(QWidget):
         save_btn.clicked.connect(self.saveSetup)
         load_btn.clicked.connect(self.loadSetup)
         calibrate_btn.clicked.connect(lambda: asyncio.create_task(self.send_calibrate_command()))
-
-        topbar = QHBoxLayout()
-        topbar.setContentsMargins(6,6,6,6)
-        topbar.setSpacing(6)
         topbar.addWidget(save_btn)
         topbar.addWidget(load_btn)
         topbar.addStretch()
@@ -417,47 +342,64 @@ class MainWindow(QWidget):
         topbar_frame.setLayout(topbar)
         topbar_frame.setFixedHeight(40)
         topbar_frame.setStyleSheet("background:#f4f4f4;border-bottom:1px solid #bfbfbf;")
-
-        # Semicircle widget
         self.selector = SemicircleSectionWidget(sections=6, ticks=60)
         self.selector.instrumentChanged.connect(self.onInstrumentChanged)
         self.selector.notesCached.connect(self.on_notes_cached)
-
         divider = QFrame(); divider.setFrameShape(QFrame.Shape.HLine); divider.setStyleSheet("color:#cfcfcf;")
-
-        notas_label = QLabel("Notas")
-        self.notas_spin = QSpinBox()
-        self.notas_spin.setRange(1,24)
-        self.notas_spin.setValue(self.selector.sections)
-        self.notas_spin.valueChanged.connect(self.selector.setSections)
-
         controls = QVBoxLayout()
+
         row = QHBoxLayout()
+        notas_label = QLabel("Notas:")
         row.addWidget(notas_label)
         row.addStretch()
+        self.notas_spin = QSpinBox()
+        self.notas_spin.setRange(1,8)
+        self.notas_spin.setValue(self.selector.sections)
+        self.notas_spin.valueChanged.connect(self.selector.setSections)
         row.addWidget(self.notas_spin)
         controls.addLayout(row)
+
         row = QHBoxLayout()
         midi_label = QLabel("Saída MIDI:")
+        row.addWidget(midi_label)
         self.midi_output_combo = QComboBox()
         self.channel_combo = QComboBox()
         self.channel_combo.addItems([str(i) for i in range(1,17)])
-        try:
-            if rtmidi is None:
-                raise RuntimeError("rtmidi not available")
-            ports = rtmidi.MidiOut().get_ports()
-            if ports:
-                self.midi_output_combo.addItems(ports)
-            else:
-                self.midi_output_combo.addItem("Nenhuma porta")
-        except Exception:
-            self.midi_output_combo.addItem("rtmidi indisponível")
-            ports = []
-        row.addWidget(midi_label)
+        if self.ports:
+            self.midi_output_combo.addItems(self.ports)
+        else:
+            self.midi_output_combo.addItem("Nenhuma porta")
         row.addWidget(self.midi_output_combo)
         row.addStretch()
         row.addWidget(QLabel("Canal:"))
         row.addWidget(self.channel_combo)
+        controls.addLayout(row)
+
+        row = QHBoxLayout()
+        accel_label_caption = QLabel("Accel:")
+        row.addWidget(accel_label_caption)
+        self.accel_label = QLabel("0")
+        self.accel_label.setFixedWidth(80)
+        row.addWidget(self.accel_label)
+        row.addStretch()
+
+        accel_thresh_caption = QLabel("Accel Threshold:")
+        row.addWidget(accel_thresh_caption)
+
+        self.accel_dial = QDial()
+        self.accel_dial.setMinimum(5000)
+        self.accel_dial.setMaximum(20000)
+        self.accel_dial.setNotchesVisible(False)   # simpler look
+        self.accel_dial.setWrapping(False)
+        self.accel_dial.setFixedSize(48, 48)       # smaller dial
+        self.accel_dial.setToolTip("10000")        # initial tooltip showing current value
+
+        # note: we no longer create self.accel_value_label
+        self.accel_dial.valueChanged.connect(self.on_accel_dial_changed)
+        row.addWidget(self.accel_dial)
+
+        self.accel_dial.valueChanged.connect(self.on_accel_dial_changed)
+        row.addWidget(self.accel_dial)
         controls.addLayout(row)
 
         layout = QVBoxLayout()
@@ -469,26 +411,13 @@ class MainWindow(QWidget):
         # função para alterar porta selecionada
         def _on_midi_port_changed(idx):
             try:
-                # close old port if any
-                if getattr(self, "midi_out_driver", None):
-                    try:
-                        self.midi_out_driver.close_port()
-                    except Exception:
-                        pass
-                    self.midi_out_driver = None
-                    self.midi_out = None
-                if rtmidi is None:
-                    return
-                midi_driver = rtmidi.MidiOut()
-                ports_local = midi_driver.get_ports()
+                self.midi_out_driver.close_port()
+                ports_local = self.midi_out_driver.get_ports()
                 if ports_local and 0 <= idx < len(ports_local):
-                    midi_driver.open_port(idx)
-                    self.midi_out_driver = midi_driver
-                    self.midi_out = True
+                    self.midi_out_driver.open_port(idx)
                     print(f"Porta MIDI alterada → {ports_local[idx]}")
             except Exception as e:
                 print("Erro ao alterar porta MIDI:", e)
-
         self.midi_output_combo.currentIndexChanged.connect(_on_midi_port_changed)
 
         self.setLayout(layout)
@@ -526,10 +455,8 @@ class MainWindow(QWidget):
                     if sec_bytes is not None:
                         n_sections = len(sec_bytes)
                         try:
-                            # Prevent spinbox valueChanged handler and combo emits from firing
                             self.notas_spin.blockSignals(True)
                             self.selector.suppress_emit = True
-                            # set spinbox value and sections (this recreates combos)
                             self.notas_spin.setValue(n_sections)
                             self.selector.setSections(n_sections)
 
@@ -550,22 +477,25 @@ class MainWindow(QWidget):
                 except Exception as e:
                     print("Erro ao ler SECTIONS:", e)
 
-                # notificações
                 try:
-                    await client.start_notify(BLE_MIDI_CHAR_UUID, self.ble_midi_callback)
-                    print("Inscrito em notificações BLE-MIDI.")
+                    sens_bytes = await client.read_gatt_char(ACCEL_SENS_CHARACTERISTIC_UUID)
+                    if sens_bytes and len(sens_bytes) >= 4:
+                        thr = int.from_bytes(bytes(sens_bytes[:4]), 'little', signed=True)
+                        thr_clamped = max(5000, min(20000, int(thr)))
+                        # set dial without emitting valueChanged to avoid accidental writes
+                        self.accel_dial.blockSignals(True)
+                        self.accel_dial.setValue(thr_clamped)
+                        self.accel_dial.setToolTip(str(thr_clamped))   # show value in tooltip
+                        self.accel_dial.blockSignals(False)
+                        print("Lido accel threshold do servidor:", thr)
                 except Exception as e:
-                    print("Não foi possível iniciar notificações BLE-MIDI:", e)
+                    print("Não foi possível ler accel threshold:", e)
 
-                try:
-                    await client.start_notify(GYRO_CHARACTERISTIC_UUID, self.ble_gyro_callback)
-                except Exception as e:
-                    print("Não foi possível iniciar notificações do giroscópio:", e)
-
-                try:
-                    await client.start_notify(TOUCH_CHARACTERISTIC_UUID, self.ble_touch_callback)
-                except Exception as e:
-                    print("Não foi possível iniciar notificações de toque:", e)
+                # Notify
+                await client.start_notify(BLE_MIDI_CHAR_UUID, self.ble_midi_callback)
+                await client.start_notify(GYRO_CHARACTERISTIC_UUID, self.ble_gyro_callback)
+                await client.start_notify(TOUCH_CHARACTERISTIC_UUID, self.ble_touch_callback)
+                await client.start_notify(ACCEL_CHARACTERISTIC_UUID, self.ble_accel_callback)
 
                 await disconnect_event.wait()
                 print("Dispositivo desconectado")
@@ -575,40 +505,19 @@ class MainWindow(QWidget):
             self.ble_client = None
 
     def ble_gyro_callback(self, characteristic: BleakGATTCharacteristic, data: bytearray):
-        try:
-            val = int.from_bytes(data, 'little', signed=True)
-        except:
-            val = 0
-        self.selector.updateGyro(val)
+        self.selector.gyro = max(-89, min(89, int.from_bytes(data, 'little', signed=True)))
+        self.selector.update()
+
+    def ble_accel_callback(self, characteristic: BleakGATTCharacteristic, data: bytearray):
+        val = int.from_bytes(bytes(data), 'little', signed=True)
+        self.accel_label.setText(str(val))
 
     def ble_touch_callback(self, characteristic: BleakGATTCharacteristic, data: bytearray):
-        try:
-            val = int.from_bytes(data, 'little', signed=False)
-        except:
-            val = 0
-        self.selector.updateTouch(bool(val))
+        self.selector.touch = int.from_bytes(data, 'little', signed=False)
 
     def ble_midi_callback(self, characteristic: BleakGATTCharacteristic, data: bytearray):
         payload = bytes(data)
-        if not payload:
-            return
-        if self.midi_out_driver is None:
-            print("MIDI não aberto — não é possível enviar MIDI.")
-            return
-        try:
-            # send raw bytes via rtmidi
-            # rtmidi expects a list of ints for send_message
-            try:
-                self.midi_out_driver.send_message(list(payload))
-            except Exception as e:
-                # best-effort: attempt to normalize to at most 3 bytes
-                try:
-                    msg = list(payload[-3:])
-                    self.midi_out_driver.send_message(msg)
-                except Exception as e2:
-                    print("Erro ao enviar mensagem MIDI via rtmidi:", e2, "bytes:", list(payload))
-        except Exception as e:
-            print("Erro ao enviar MIDI (rtmidi):", e, "bytes:", list(payload))
+        self.midi_out_driver.send_message(list(payload[-3:]))
 
     @asyncSlot(int, str)
     async def onInstrumentChanged(self, index: int, name: str):
@@ -652,6 +561,26 @@ class MainWindow(QWidget):
         except Exception as e:
             print("Falha ao enviar comando de calibração:", e)
 
+    def on_accel_dial_changed(self, v):
+        # show the current value as a tooltip on the dial
+        self.accel_dial.setToolTip(str(v))
+
+        # write to device (4-byte little-endian int)
+        if not self.ble_client or not getattr(self.ble_client, "is_connected", False):
+            return
+        try:
+            val_bytes = int(v).to_bytes(4, 'little', signed=True)
+            asyncio.create_task(self._async_write_accel_threshold(val_bytes))
+        except Exception as e:
+            print("Erro ao preparar escrita de accel threshold:", e)
+
+    async def _async_write_accel_threshold(self, payload: bytes):
+        try:
+            await self.ble_client.write_gatt_char(ACCEL_SENS_CHARACTERISTIC_UUID, payload, response=True)
+            print("Escreveu accel threshold no servidor:", int.from_bytes(payload, 'little', signed=True))
+        except Exception as e:
+            print("Falha ao escrever accel threshold:", e)
+
     def saveSetup(self):
         path, _ = QFileDialog.getSaveFileName(self, "Salvar Configuração", "", "JSON Files (*.json)")
         if not path:
@@ -672,8 +601,6 @@ class MainWindow(QWidget):
 
     def loadSetup(self):
         path, _ = QFileDialog.getOpenFileName(self, "Abrir Configuração", "", "JSON Files (*.json)")
-        if not path:
-            return
         try:
             with open(path, "r") as f:
                 data = json.load(f)
@@ -684,21 +611,10 @@ class MainWindow(QWidget):
         for combo, note in zip(self.selector.combos, data.get("notes", [])):
             combo.setCurrentText(note)
         self.selector.cacheCombos()
-        instr = data.get("instrument", 0)
-        self.selector.setInstrument(instr, None)
+        self.selector.setInstrument(data.get("instrument", 0), None)
         # aplica porta MIDI se disponível
-        try:
-            idx = int(data.get("midi_port_index", 0))
-            if 0 <= idx < self.midi_output_combo.count():
-                self.midi_output_combo.setCurrentIndex(idx)
-        except Exception:
-            pass
-        try:
-            ch = int(data.get("midi_channel", 1))
-            if 1 <= ch <= 16:
-                self.channel_combo.setCurrentText(str(ch))
-        except Exception:
-            pass
+        self.midi_output_combo.setCurrentIndex(int(data.get("midi_port_index", 0)))
+        self.channel_combo.setCurrentText(str(int(data.get("midi_channel", 1))))
         print("Configuração carregada de", path)
 
 # Device selector
@@ -763,7 +679,7 @@ async def main(app):
         app.quit()
         return
 
-    win = MainWindow(selected_device=selected)
+    win = MainWindow(selected_device = selected)
     win.setWindowTitle("Contato GUI")
     win.show()
 
