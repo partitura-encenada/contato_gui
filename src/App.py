@@ -4,6 +4,8 @@ import math
 import json
 import asyncio
 from enum import Enum
+from collections import deque
+
 
 from PyQt6.QtCore import Qt, QPointF, QTimer, pyqtSignal, QEvent
 from PyQt6.QtWidgets import (
@@ -28,7 +30,8 @@ ACCEL_SENS_CHARACTERISTIC_UUID = 'c7f2b2e2-1a2b-4c3d-9f0a-123456abcdef'
 TOUCH_CHARACTERISTIC_UUID = '55558523-eca8-4b78-ae20-97ed68c68c26'
 CALIBRATE_CHAR_UUID = 'b4d0c9f8-3b9a-4a4e-93f2-2a8c9f5ee7a2'
 BLE_MIDI_CHAR_UUID = '7772e5db-3868-4112-a1a9-f2669d106bf3'
-
+DIR_CHAR_UUID = "a1b2c3d4-0001-4b33-a751-6ce34ec4c701"
+# LEGATO_CHAR_UUID = "a1b2c3d4-0002-4b33-a751-6ce34ec4c702"
 BLE_MIDI_SERVICE_UUID = '03b80e5a-ede8-4b33-a751-6ce34ec4c700'
 
 class AccelLevel(Enum):
@@ -165,7 +168,6 @@ class WNotesSelector(QFrame):
         self.pulse_phase = (self.pulse_phase + 0.1) % (2 * math.pi)
 
     def createCombos(self):
-        self.block_write_combos = True
         for c in getattr(self, "combos", []):
             c.deleteLater()
         self.combos = []
@@ -177,7 +179,6 @@ class WNotesSelector(QFrame):
             combo.currentTextChanged.connect(self.signal_write_combos)
             self.combos.append(combo)
         self.updateComboboxPositions()
-        self.block_write_combos = False
 
     def signal_write_combos(self):
         if not self.block_write_combos:
@@ -397,6 +398,29 @@ class MainWindow(QWidget):
         row.addWidget(self.accel_combo)
         controls.addLayout(row)
 
+        row = QHBoxLayout()
+        dir_label = QLabel("Direção:")
+        row.addWidget(dir_label)
+        self.dir_combo = QComboBox()
+        self.dir_combo.addItems(["Esquerda", "Direita"])
+        self.dir_combo.setFixedWidth(110)
+        self.dir_combo.currentIndexChanged.connect(self.async_write_direction)
+        row.addWidget(self.dir_combo)
+        controls.addLayout(row)
+
+        # row = QHBoxLayout()
+        # legato_label = QLabel("Legato:")
+        # row.addWidget(legato_label)
+        # self.legato_btn = QPushButton("Off")
+        # self.legato_btn.setCheckable(True)
+        # self.legato_btn.setFixedSize(60, 24)
+        # def on_legato_toggled(checked):
+        #     self.legato_btn.setText("On" if checked else "Off")
+        #     asyncio.create_task(self.async_write_legato(1 if checked else 0))
+        # self.legato_btn.toggled.connect(on_legato_toggled)
+        # row.addWidget(self.legato_btn)
+        # controls.addLayout(row)
+
         layout.addLayout(controls)
         # --------------- ---------------
 
@@ -418,8 +442,19 @@ class MainWindow(QWidget):
             self.selector.touch = touch
             self.selector.update()
         
-    def ble_midi_callback(self, characteristic: BleakGATTCharacteristic, data: bytearray):
-        self.midi_out_driver.send_message(list(bytes(data)[-3:]))
+    def ble_midi_callback(
+        self,
+        _: BleakGATTCharacteristic,
+        data: bytearray
+    ):
+        raw = bytes(data)
+        if len(raw) < 3:
+            return
+
+        # send last MIDI message (same behavior as original App.py)
+        msg = list(raw[-3:])
+        print(msg)
+        self.midi_out_driver.send_message(msg)
 
     def on_midi_port_changed(self, idx):
         self.midi_out_driver.close_port()
@@ -458,6 +493,32 @@ class MainWindow(QWidget):
         midi_bytes = bytes([name_to_midi(n) for n in notes_list])
         await self.ble_client.write_gatt_char(SECTIONS_CHAR_UUID, midi_bytes, response=True)
         print("Escreveu sections no servidor:", list(midi_bytes))
+
+    @asyncSlot(int)
+    async def async_write_direction(self, idx: int):
+        """Write 0 for Direita, 1 for Esquerda to server."""
+        if not self.ble_client:
+            print("Nenhum cliente BLE conectado — não pode escrever direção.")
+            return
+        val = bytes([1 if idx == 1 else 0])
+        try:
+            await self.ble_client.write_gatt_char(DIR_CHAR_UUID, val, response=True)
+            print(f"Escreveu direção → {'Esquerda' if idx==1 else 'Direita'} ({val[0]})")
+        except Exception as e:
+            print("Erro escrevendo direção:", e)
+
+    # @asyncSlot(int)
+    # async def async_write_legato(self, on_off: int):
+    #     """Write 0/1 to legato characteristic (functionality on server is TODO)."""
+    #     if not self.ble_client:
+    #         print("Nenhum cliente BLE conectado — não pode escrever legato.")
+    #         return
+    #     val = bytes([1 if on_off else 0])
+    #     try:
+    #         await self.ble_client.write_gatt_char(LEGATO_CHAR_UUID, val, response=True)
+    #         print(f"Escreveu legato → {'On' if on_off else 'Off'} ({val[0]})")
+    #     except Exception as e:
+    #         print("Erro escrevendo legato:", e)
 
     @asyncSlot()
     async def send_calibrate_command(self):
@@ -532,6 +593,21 @@ class MainWindow(QWidget):
                         self.accel_combo.setCurrentIndex(idx)
                     self.accel_combo.blockSignals(False)
 
+                dir_bytes = await client.read_gatt_char(DIR_CHAR_UUID)
+                if dir_bytes and len(dir_bytes) >= 1:
+                    idx = 1 if dir_bytes[0] != 0 else 0
+                    self.dir_combo.blockSignals(True)
+                    self.dir_combo.setCurrentIndex(idx)
+                    self.dir_combo.blockSignals(False)
+
+                # legato_bytes = await client.read_gatt_char(LEGATO_CHAR_UUID)
+                # if legato_bytes and len(legato_bytes) >= 1:
+                #     checked = bool(legato_bytes[0])
+                #     self.legato_btn.blockSignals(True)
+                #     self.legato_btn.setChecked(checked)
+                #     self.legato_btn.setText("On" if checked else "Off")
+                #     self.legato_btn.blockSignals(False)
+
                 # Notify subscribing
                 await client.start_notify(BLE_MIDI_CHAR_UUID, self.ble_midi_callback)
                 await client.start_notify(GYRO_CHARACTERISTIC_UUID, self.ble_gyro_callback)
@@ -547,7 +623,7 @@ class MainWindow(QWidget):
             self.ble_client = None
 
 async def choose_device_before_opening(parent = None):
-    devices = await BleakScanner.discover(timeout = 1.0, service_uuids = [BLE_MIDI_SERVICE_UUID])
+    devices = await BleakScanner.discover(timeout = 3.0, service_uuids = [BLE_MIDI_SERVICE_UUID])
     dlg = QDialog(parent)
     dlg.setWindowTitle("Selecionar dispositivo BLE")
     dlg.setModal(True)
@@ -591,14 +667,13 @@ async def choose_device_before_opening(parent = None):
         return result['device']
     return None
 
-# App entrypoint
 async def main(app):
     app_close_event = asyncio.Event()
     app.aboutToQuit.connect(app_close_event.set)
 
     splash = SplashScreen()
     splash.show()
-    await asyncio.sleep(1.0)
+    await asyncio.sleep(3.0)
 
     selected = await choose_device_before_opening(None)
     splash.close()
