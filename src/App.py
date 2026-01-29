@@ -3,9 +3,8 @@ import sys
 import math
 import json
 import asyncio
+import struct
 from enum import Enum
-from collections import deque
-
 
 from PyQt6.QtCore import Qt, QPointF, QTimer, pyqtSignal, QEvent
 from PyQt6.QtWidgets import (
@@ -24,10 +23,8 @@ from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
 
 SECTIONS_CHAR_UUID = '251beea3-1c81-454f-a9dd-8561ec692ded'
-GYRO_CHARACTERISTIC_UUID = 'f8d968fe-99d7-46c4-a61c-f38093af6ec8'
-ACCEL_CHARACTERISTIC_UUID = 'd3b8a1f1-9c4f-4c9b-8f1e-abcdef123456'
+STATUS_CHARACTERISTIC_UUID = 'f8d968fe-99d7-46c4-a61c-f38093af6ec8'
 ACCEL_SENS_CHARACTERISTIC_UUID = 'c7f2b2e2-1a2b-4c3d-9f0a-123456abcdef'
-TOUCH_CHARACTERISTIC_UUID = '55558523-eca8-4b78-ae20-97ed68c68c26'
 CALIBRATE_CHAR_UUID = 'b4d0c9f8-3b9a-4a4e-93f2-2a8c9f5ee7a2'
 BLE_MIDI_CHAR_UUID = '7772e5db-3868-4112-a1a9-f2669d106bf3'
 DIR_CHAR_UUID = "a1b2c3d4-0001-4b33-a751-6ce34ec4c701"
@@ -53,13 +50,51 @@ class SplashScreen(QSplashScreen):
         )
         super().__init__(pix)
 
-NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
+class AboutDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
 
-def midi_to_name(x):
-    note=NOTE_NAMES[x%12]
-    octave=(x//12)-1
-    octave=max(1,min(5,octave))
-    return f"{note}{octave}"
+        self.setWindowTitle("About")
+        self.setFixedSize(360, 240)
+
+        layout = QVBoxLayout(self)
+
+        # --- About text ---
+        title = QLabel("BLE MIDI Client")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size: 18px; font-weight: bold;")
+
+        desc = QLabel(
+            "A BLE sensor → MIDI bridge.\n\n"
+            "Built for low-latency experimentation."
+        )
+        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc.setWordWrap(True)
+
+        layout.addWidget(title)
+        layout.addWidget(desc)
+        layout.addStretch()
+
+        # --- Bottom logos (placeholder) ---
+        logos_layout = QHBoxLayout()
+        logos_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        splash = QPixmap(os.path.join(os.path.dirname(__file__), "splash.png"))  # reuse splash as placeholder
+        splash = splash.scaled(
+            64, 64,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+
+        logo_label = QLabel()
+        logo_label.setPixmap(splash)
+
+        logos_layout.addWidget(logo_label)
+
+        layout.addLayout(logos_layout)
+
+
+NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
 
 def name_to_midi(name):
     if '#' in name[:2]: note=name[:2]; octave=int(name[2:])
@@ -105,8 +140,8 @@ class ToggleEnterComboBox(QComboBox):
             super().keyPressEvent(e)
 
 class WNotesSelector(QFrame):
-    instrumentChanged = pyqtSignal(int, str)
-    notesCached = pyqtSignal(list)
+    signalInstrumentChanged = pyqtSignal(int, str)
+    signalNotes = pyqtSignal(list)
 
     def __init__(self, sections = 6, ticks = 30, parent = None):
         super().__init__(parent)
@@ -114,6 +149,7 @@ class WNotesSelector(QFrame):
         self.margin = 15
         self.offset = 80
         self.sections = sections
+        self.combos = []
         self.ticks = ticks
         self.tick_long = 14
         self.tick_short = 8
@@ -150,9 +186,6 @@ class WNotesSelector(QFrame):
             QPushButton:focus {{ border:2px solid {PRIMARY_COLOR.name()}; }}
         """)
         self.center_button.clicked.connect(self.showInstrumentSelector)
-        
-        self.block_write_combos = False
-        self.createCombos()
 
         self.hand_icon = QPixmap(20,20)
         self.hand_icon.fill(Qt.GlobalColor.transparent)
@@ -167,26 +200,9 @@ class WNotesSelector(QFrame):
     def updatePulse(self):
         self.pulse_phase = (self.pulse_phase + 0.1) % (2 * math.pi)
 
-    def createCombos(self):
-        for c in getattr(self, "combos", []):
-            c.deleteLater()
-        self.combos = []
-        for _ in range(self.sections):
-            combo = ToggleEnterComboBox(self)
-            combo.addItems(self.notes)
-            combo.setCurrentText("C3")
-            combo.show()
-            combo.currentTextChanged.connect(self.signal_write_combos)
-            self.combos.append(combo)
-        self.updateComboboxPositions()
-
-    def signal_write_combos(self):
-        if not self.block_write_combos:
-            self.notesCached.emit([c.currentText() for c in self.combos])
-
     def setSections(self, count):
         count = int(count)
-        old_notes = [c.currentText() for c in getattr(self,"combos",[])]
+        old_notes = [c.currentText() for c in self.combos]
         self.sections = count
         if count <= len(old_notes):
             new_notes = old_notes[:count]
@@ -198,19 +214,15 @@ class WNotesSelector(QFrame):
         for note in new_notes:
             combo = ToggleEnterComboBox(self)
             combo.addItems(self.notes)
+            combo.blockSignals(True)
+            combo.currentIndexChanged.connect(lambda i: self.signalNotes.emit([c.currentText() for c in self.combos]))
+            combo.blockSignals(False)
             combo.setCurrentText(note)
             combo.show()
-            combo.currentTextChanged.connect(self.signal_write_combos)
             self.combos.append(combo)
-        self.updateComboboxPositions()
-        self.signal_write_combos()
-        self.update()
+        self.signalNotes.emit([c.currentText() for c in self.combos])
 
-    def resizeEvent(self, ev):
-        super().resizeEvent(ev)
-        self.updateComboboxPositions()
-
-    def updateComboboxPositions(self):
+        # Update position
         w,h = self.width(), self.height()
         cx,cy = w/2 - self.offset, h/2
         r = min((h/2)-self.margin, (w-cx)-self.margin)
@@ -218,13 +230,14 @@ class WNotesSelector(QFrame):
         start_ang = -math.pi/2
         bw,bh = self.center_button.width(), self.center_button.height()
         self.center_button.move(int(cx-bw/2), int(cy-bh/2))
-
         for i, combo in enumerate(self.combos):
             mid = start_ang + section_angle * (i + 0.5)
             rr = r * 0.6
             x = cx + rr * math.cos(mid) - combo.width()/2
             y = cy + rr * math.sin(mid) - combo.height()/2
             combo.move(int(x), int(y))
+
+        self.update()
 
     def showInstrumentSelector(self):
         dialog = QDialog(self); dialog.setWindowTitle("Select Instrument"); dialog.setModal(True)
@@ -244,14 +257,14 @@ class WNotesSelector(QFrame):
         self.current_instrument_index = index
         icon,name = self.instruments[index]
         self.center_button.setText(icon)
-        self.instrumentChanged.emit(index, name)
+        self.signalInstrumentChanged.emit(index, name)
         if dialog: dialog.accept()
 
     def paintEvent(self, _):
         painter = QPainter(self); painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         w,h = self.width(), self.height()
         cx,cy = w/2 - self.offset, h/2
-        r = min((h/2)-self.margin, (w-cx)-self.margin)
+        r = min((h/2) - self.margin, (w-cx) - self.margin)
         section_angle = math.pi / self.sections
         selected_tick = int(((self.gyro * math.pi / -180) + math.pi / 2) / (math.pi / self.ticks))
         selected_section = int(((self.gyro * math.pi / -180) + math.pi / 2) / (math.pi / self.sections))
@@ -330,16 +343,24 @@ class MainWindow(QWidget):
         save_btn = QPushButton("Salvar")
         load_btn = QPushButton("Abrir")
         calibrate_btn = QPushButton("Calibrar")
-        for b in (save_btn, load_btn, calibrate_btn):
+        about_btn = QPushButton("Sobre")
+        def show_about(self):
+            dialog = AboutDialog(self)
+            dialog.exec()
+
+        about_btn.clicked.connect(lambda: show_about(self))
+
+        for b in (save_btn, load_btn, calibrate_btn, about_btn):
             b.setFixedSize(90, 26)
-            b.setStyleSheet("QPushButton{border:1px solid #b0b0b0;border-radius:3px;background:#eaeaea;} QPushButton:hover{background:#dcdcdc}")
+            b.setStyleSheet("QPushButton{border-radius:3px;background:#eaeaea;} QPushButton:hover{background:#dcdcdc}")
         save_btn.clicked.connect(self.save_setup)
         load_btn.clicked.connect(self.load_setup)
         calibrate_btn.clicked.connect(self.send_calibrate_command)
         topbar.addWidget(save_btn)
         topbar.addWidget(load_btn)
-        topbar.addStretch()
         topbar.addWidget(calibrate_btn)
+        topbar.addStretch()
+        topbar.addWidget(about_btn)
         topbar_frame = QFrame()
         topbar_frame.setLayout(topbar)
         topbar_frame.setFixedHeight(40)
@@ -349,8 +370,8 @@ class MainWindow(QWidget):
 
         # --------------- NOTES SELECTOR ---------------
         self.selector = WNotesSelector(sections=6, ticks=60)
-        self.selector.instrumentChanged.connect(self.on_instrument_changed)
-        self.selector.notesCached.connect(self.async_write_sections)
+        self.selector.signalInstrumentChanged.connect(self.async_on_instrument_changed)
+        self.selector.signalNotes.connect(self.async_write_sections)
         layout.addWidget(self.selector, alignment=Qt.AlignmentFlag.AlignCenter)
         # --------------- ---------------
 
@@ -390,6 +411,9 @@ class MainWindow(QWidget):
         controls.addLayout(row)
 
         row = QHBoxLayout()
+        midi_label = QLabel("Sensibilidade:")
+        row.addWidget(midi_label)
+        row.addStretch()
         self.accel_combo = QComboBox()
         for level in AccelLevel:
             self.accel_combo.addItem(level.name.title(), level)  # show Soft/Medium/Hard
@@ -408,39 +432,17 @@ class MainWindow(QWidget):
         row.addWidget(self.dir_combo)
         controls.addLayout(row)
 
-        # row = QHBoxLayout()
-        # legato_label = QLabel("Legato:")
-        # row.addWidget(legato_label)
-        # self.legato_btn = QPushButton("Off")
-        # self.legato_btn.setCheckable(True)
-        # self.legato_btn.setFixedSize(60, 24)
-        # def on_legato_toggled(checked):
-        #     self.legato_btn.setText("On" if checked else "Off")
-        #     asyncio.create_task(self.async_write_legato(1 if checked else 0))
-        # self.legato_btn.toggled.connect(on_legato_toggled)
-        # row.addWidget(self.legato_btn)
-        # controls.addLayout(row)
-
         layout.addLayout(controls)
         # --------------- ---------------
 
         if self.selected_device:
             asyncio.create_task(self.ble_connect_to_selected(self.selected_device))
 
-    def ble_gyro_callback(self, characteristic: BleakGATTCharacteristic, data: bytearray):
-        gyro = int.from_bytes(data, 'little', signed=True)  
-        if gyro != self.selector.gyro:
-            self.selector.gyro = gyro
-            self.selector.update()
-
-    def ble_accel_callback(self, characteristic: BleakGATTCharacteristic, data: bytearray):
-        val = int.from_bytes(bytes(data), 'little', signed=True)
-
-    def ble_touch_callback(self, characteristic: BleakGATTCharacteristic, data: bytearray):
-        touch = bool.from_bytes(data, 'little', signed=False)
-        if touch != self.selector.touch:
-            self.selector.touch = touch
-            self.selector.update()
+    def ble_status_callback(self, characteristic: BleakGATTCharacteristic, data: bytearray):
+        gyro_x, accel_x, touch = struct.unpack("<hhB", data)
+        self.selector.gyro = gyro_x
+        self.selector.touch = touch
+        self.selector.update()
         
     def ble_midi_callback(
         self,
@@ -451,7 +453,6 @@ class MainWindow(QWidget):
         if len(raw) < 3:
             return
 
-        # send last MIDI message (same behavior as original App.py)
         msg = list(raw[-3:])
         print(msg)
         self.midi_out_driver.send_message(msg)
@@ -459,14 +460,14 @@ class MainWindow(QWidget):
     def on_midi_port_changed(self, idx):
         self.midi_out_driver.close_port()
         self.midi_out_driver.open_port(idx)
-        print(f"Porta MIDI alterada → {self.ports[idx]}")
+        print(f"Porta MIDI alterada: {self.ports[idx]}")
 
     @asyncSlot(int, str)
-    async def on_instrument_changed(self, index: int, name: str):
+    async def async_on_instrument_changed(self, index: int, name: str):
         prog = max(0, min(127, int(index)))
         ch = max(0, min(15, int(self.channel_combo.currentText()) - 1))
 
-        print(f"Instrumento alterado → {name} (programa {prog}) no canal {ch+1}")
+        print(f"Instrumento alterado: {name} (programa {prog}) no canal {ch+1}")
         try:
             status = 0xC0 | (ch & 0x0F)
             self.midi_out_driver.send_message([status, prog])
@@ -483,10 +484,11 @@ class MainWindow(QWidget):
 
         payload = enum_obj.value.to_bytes(2, "little", signed=True)
         await self.ble_client.write_gatt_char(ACCEL_SENS_CHARACTERISTIC_UUID, payload, response=True)
-        print(f"Escreveu accel sensitivity → {enum_obj.name} ({enum_obj.value})")
+        print(f"Escreveu accel sensitivity: {enum_obj.name} ({enum_obj.value})")
 
     @asyncSlot(list)
     async def async_write_sections(self, notes_list):
+        """Escreve seções/ notas no servidor"""
         if not self.ble_client:
             return
       
@@ -496,7 +498,7 @@ class MainWindow(QWidget):
 
     @asyncSlot(int)
     async def async_write_direction(self, idx: int):
-        """Write 0 for Direita, 1 for Esquerda to server."""
+        """Escreve 0 para Direita, 1 para Esquerda no server."""
         if not self.ble_client:
             print("Nenhum cliente BLE conectado — não pode escrever direção.")
             return
@@ -506,19 +508,6 @@ class MainWindow(QWidget):
             print(f"Escreveu direção → {'Esquerda' if idx==1 else 'Direita'} ({val[0]})")
         except Exception as e:
             print("Erro escrevendo direção:", e)
-
-    # @asyncSlot(int)
-    # async def async_write_legato(self, on_off: int):
-    #     """Write 0/1 to legato characteristic (functionality on server is TODO)."""
-    #     if not self.ble_client:
-    #         print("Nenhum cliente BLE conectado — não pode escrever legato.")
-    #         return
-    #     val = bytes([1 if on_off else 0])
-    #     try:
-    #         await self.ble_client.write_gatt_char(LEGATO_CHAR_UUID, val, response=True)
-    #         print(f"Escreveu legato → {'On' if on_off else 'Off'} ({val[0]})")
-    #     except Exception as e:
-    #         print("Erro escrevendo legato:", e)
 
     @asyncSlot()
     async def send_calibrate_command(self):
@@ -557,7 +546,7 @@ class MainWindow(QWidget):
         self.selector.setSections(data.get("sections"))
         for combo, note in zip(self.selector.combos, data.get("notes", [])):
             combo.setCurrentText(note)
-        self.selector.signal_write_combos()
+        # self.selector.signal_write_combos()
         self.selector.setInstrument(data.get("instrument"), None)
         # aplica porta MIDI se disponível
         self.midi_output_combo.setCurrentIndex(int(data.get("midi_port_index")))
@@ -565,62 +554,46 @@ class MainWindow(QWidget):
         print("Configuração carregada de", path)
 
     async def ble_connect_to_selected(self, device):
-        try:
-            disconnect_event = asyncio.Event()
-            async with BleakClient(device, disconnected_callback=lambda c: disconnect_event.set()) as client:
-                self.ble_client = client
-                print(f"Conectado a {device.name} / {device.address}")
-                
-                # Ler SECTIONS e aplicar no UI (bloqueia sinais do spinbox)
-                self.selector.block_write_combos = True
-                section_bytes = await client.read_gatt_char(SECTIONS_CHAR_UUID)
-                self.notas_spin.setValue(len(section_bytes))
-                for i, b in enumerate(section_bytes):
-                    nm = midi_to_name(b)
-                    if i < len(self.selector.combos):
-                        combo = self.selector.combos[i]
-                        combo.setCurrentText(nm)
-                self.selector.block_write_combos = False
-                
-                # Set accel sensitivity
-                sens_bytes = await client.read_gatt_char(ACCEL_SENS_CHARACTERISTIC_UUID)
-                if sens_bytes and len(sens_bytes) >= 4:
-                    raw = int.from_bytes(sens_bytes[:4], "little", signed=True)
-                    level = min(AccelLevel, key=lambda lvl: abs(lvl.value - raw))
-                    self.accel_combo.blockSignals(True)
-                    idx = self.accel_combo.findText(level.name.title())
-                    if idx >= 0:
-                        self.accel_combo.setCurrentIndex(idx)
-                    self.accel_combo.blockSignals(False)
+        async with BleakClient(device) as client:
+            self.ble_client = client
+            print(f"Conectado a {device.name} / {device.address}")
+            
+            # Ler sections
+            section_bytes = await client.read_gatt_char(SECTIONS_CHAR_UUID)
+            self.notas_spin.setValue(len(section_bytes))
+            for i, b in enumerate(section_bytes):
+                note = NOTE_NAMES[b%12]
+                octave = (b // 12) -1
+                octave = max(1,min(5,octave))
+                if i < len(self.selector.combos):
+                    combo = self.selector.combos[i]
+                    combo.setCurrentText(f"{note}{octave}")
+            
+            # Ler SENSITIVITY e aplicar no UI (bloqueia sinais do combobox)
+            sens_bytes = await client.read_gatt_char(ACCEL_SENS_CHARACTERISTIC_UUID)
+            if sens_bytes and len(sens_bytes) >= 4:
+                raw = int.from_bytes(sens_bytes[:4], "little", signed=True)
+                level = min(AccelLevel, key=lambda lvl: abs(lvl.value - raw))
+                self.accel_combo.blockSignals(True)
+                idx = self.accel_combo.findText(level.name.title())
+                if idx >= 0:
+                    self.accel_combo.setCurrentIndex(idx)
+                self.accel_combo.blockSignals(False)
 
-                dir_bytes = await client.read_gatt_char(DIR_CHAR_UUID)
-                if dir_bytes and len(dir_bytes) >= 1:
-                    idx = 1 if dir_bytes[0] != 0 else 0
-                    self.dir_combo.blockSignals(True)
-                    self.dir_combo.setCurrentIndex(idx)
-                    self.dir_combo.blockSignals(False)
+            dir_bytes = await client.read_gatt_char(DIR_CHAR_UUID)
+            if dir_bytes and len(dir_bytes) >= 1:
+                idx = 1 if dir_bytes[0] != 0 else 0
+                self.dir_combo.blockSignals(True)
+                self.dir_combo.setCurrentIndex(idx)
+                self.dir_combo.blockSignals(False)
 
-                # legato_bytes = await client.read_gatt_char(LEGATO_CHAR_UUID)
-                # if legato_bytes and len(legato_bytes) >= 1:
-                #     checked = bool(legato_bytes[0])
-                #     self.legato_btn.blockSignals(True)
-                #     self.legato_btn.setChecked(checked)
-                #     self.legato_btn.setText("On" if checked else "Off")
-                #     self.legato_btn.blockSignals(False)
-
-                # Notify subscribing
-                await client.start_notify(BLE_MIDI_CHAR_UUID, self.ble_midi_callback)
-                await client.start_notify(GYRO_CHARACTERISTIC_UUID, self.ble_gyro_callback)
-                await client.start_notify(TOUCH_CHARACTERISTIC_UUID, self.ble_touch_callback)
-                await client.start_notify(ACCEL_CHARACTERISTIC_UUID, self.ble_accel_callback)
-
-                await disconnect_event.wait()
-                print("Dispositivo desconectado")
-                self.ble_client = None
-
-        except Exception as e:
-            print("Erro na conexão BLE:", e)
-            self.ble_client = None
+            # # Notify subscribing
+            await client.start_notify(BLE_MIDI_CHAR_UUID, self.ble_midi_callback)
+            await client.start_notify(STATUS_CHARACTERISTIC_UUID, self.ble_status_callback)
+            # await client.start_notify(, self.ble_touch_callback)
+            # await client.start_notify(ACCEL_CHARACTERISTIC_UUID, self.ble_accel_callback)
+            while True:
+                await asyncio.sleep(1)
 
 async def choose_device_before_opening(parent = None):
     devices = await BleakScanner.discover(timeout = 3.0, service_uuids = [BLE_MIDI_SERVICE_UUID])
@@ -671,12 +644,12 @@ async def main(app):
     app_close_event = asyncio.Event()
     app.aboutToQuit.connect(app_close_event.set)
 
-    splash = SplashScreen()
-    splash.show()
-    await asyncio.sleep(3.0)
+    # splash = SplashScreen()
+    # splash.show()
+    # await asyncio.sleep(3.0)
 
     selected = await choose_device_before_opening(None)
-    splash.close()
+    # splash.close()
     if not selected:
         print("Nenhum dispositivo selecionado — encerrando.")
         app.quit()
