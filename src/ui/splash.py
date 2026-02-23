@@ -1,3 +1,5 @@
+# Tela de carregamento exibida durante a varredura BLE inicial.
+
 import os
 
 from PyQt6.QtCore import Qt

@@ -1,9 +1,16 @@
+"""Persistência de configuração da sessão em arquivo JSON.
+
+Salva e carrega as notas, instrumento, porta MIDI e canal selecionados
+pelo usuário, permitindo retomar rapidamente uma configuração anterior.
+"""
+
 import json
 
 from PyQt6.QtWidgets import QFileDialog, QWidget
 
 
 def save_setup(window: QWidget, parent: QWidget | None = None) -> None:
+    """Abre diálogo de salvamento e grava a configuração atual em JSON."""
     path, _ = QFileDialog.getSaveFileName(
         parent, "Salvar Configuração", "", "JSON Files (*.json)"
     )
@@ -11,11 +18,11 @@ def save_setup(window: QWidget, parent: QWidget | None = None) -> None:
         return
 
     data = {
-        "sections":       window.selector.sections,
-        "instrument":     window.selector.current_instrument_index,
-        "notes":          [c.currentText() for c in window.selector.combos],
+        "sections":        window.selector.sections,
+        "instrument":      window.selector.current_instrument_index,
+        "notes":           [c.currentText() for c in window.selector.combos],
         "midi_port_index": window.midi_output_combo.currentIndex(),
-        "midi_channel":   int(window.channel_combo.currentText()),
+        "midi_channel":    int(window.channel_combo.currentText()),
     }
     try:
         with open(path, "w") as f:
@@ -26,6 +33,7 @@ def save_setup(window: QWidget, parent: QWidget | None = None) -> None:
 
 
 def load_setup(window: QWidget, parent: QWidget | None = None) -> None:
+    """Abre diálogo de carregamento e aplica a configuração do arquivo JSON."""
     path, _ = QFileDialog.getOpenFileName(
         parent, "Abrir Configuração", "", "JSON Files (*.json)"
     )
@@ -39,6 +47,7 @@ def load_setup(window: QWidget, parent: QWidget | None = None) -> None:
         print("Erro ao abrir configuração:", e)
         return
 
+    # Aplica os valores carregados nos controles da janela principal
     window.selector.setSections(data.get("sections", 6))
     for combo, note in zip(window.selector.combos, data.get("notes", [])):
         combo.setCurrentText(note)

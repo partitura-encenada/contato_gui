@@ -1,24 +1,17 @@
-"""Dark theme palette and focused QSS stylesheet.
-
-Rules here are intentionally narrow — broad QWidget/QFrame/QLabel rules
-are avoided to prevent Qt's stylesheet inheritance from clobbering things
-like label transparency or native subcontrol rendering (arrows, etc.).
-
-Background colours and text colours come from the QPalette set in app.py
-via the Fusion style, so most widgets "just work" without extra rules.
+"""Paleta de cores e folha de estilo QSS do tema escuro.
 """
 
-BG      = "#0f172a"   # window / deep background
-SURFACE = "#1e293b"   # panels, cards
-RAISED  = "#334155"   # inputs, elevated items
-BORDER  = "#475569"   # borders
-ACCENT  = "#6bbbc5"   # grayish cyan accent
-ACCENT2 = "#3a7d86"   # darker grayish cyan (hover / active)
-TEXT    = "#f1f5f9"   # primary text
-MUTED   = "#94a3b8"   # secondary / label text
+BG      = "#071125"   # fundo da janela / plano de fundo profundo
+SURFACE = "#1e293b"   # painéis, cartões
+RAISED  = "#334155"   # campos de entrada, itens elevados
+BORDER  = "#475569"   # bordas
+ACCENT  = "#6bbbc5"   # ciano acinzentado — cor de destaque principal
+ACCENT2 = "#3a7d86"   # ciano mais escuro — estado de hover / ativo
+TEXT    = "#f1f5f9"   # texto primário
+MUTED   = "#94a3b8"   # texto secundário / rótulos
 
 STYLESHEET = f"""
-/* ── Buttons ─────────────────────────────────────────────────────────────── */
+/* ── Botões ──────────────────────────────────────────────────────────────── */
 QPushButton {{
     background-color: {SURFACE};
     color: {TEXT};
