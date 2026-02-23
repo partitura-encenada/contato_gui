@@ -1,3 +1,9 @@
+"""Janela principal da aplicação Contato GUI.
+
+Contém a barra superior com ações (salvar/abrir/sobre), o widget seletor
+de notas e o painel de controles (notas, direção, sensibilidade, MIDI).
+"""
+
 import asyncio
 import os
 
@@ -20,7 +26,7 @@ from ui.theme import SURFACE, RAISED, BORDER, ACCENT, ACCENT2, TEXT, MUTED
 
 
 def _btn_icon(kind: str, size: int = 13) -> QIcon:
-    """Draw a minimal line icon for toolbar buttons."""
+    """Desenha um ícone de linha mínimo para os botões da barra superior."""
     color = QColor("#c8d4de")
     pix = QPixmap(size, size)
     pix.fill(Qt.GlobalColor.transparent)
@@ -33,14 +39,14 @@ def _btn_icon(kind: str, size: int = 13) -> QIcon:
     s = float(size)
 
     if kind == "save":
-        # Down-arrow with base line (save-to-disk)
+        # Seta para baixo com linha de base (salvar em disco)
         p.drawLine(QPointF(s / 2, 1.5),       QPointF(s / 2, s - 3.5))
         p.drawLine(QPointF(s / 2 - 2.5, s - 6), QPointF(s / 2, s - 3.5))
         p.drawLine(QPointF(s / 2 + 2.5, s - 6), QPointF(s / 2, s - 3.5))
         p.drawLine(QPointF(2.0, s - 1.5),     QPointF(s - 2.0, s - 1.5))
 
     elif kind == "open":
-        # Simplified folder shape
+        # Forma simplificada de pasta
         p.drawLine(QPointF(1.5, 4.5),          QPointF(1.5, s - 1.5))
         p.drawLine(QPointF(1.5, s - 1.5),      QPointF(s - 1.5, s - 1.5))
         p.drawLine(QPointF(s - 1.5, s - 1.5),  QPointF(s - 1.5, 4.5))
@@ -50,7 +56,7 @@ def _btn_icon(kind: str, size: int = 13) -> QIcon:
         p.drawLine(QPointF(1.5, 2.5),           QPointF(1.5, 4.5))
 
     elif kind == "info":
-        # Circle with "i"
+        # Círculo com "i"
         p.drawEllipse(QRectF(1.5, 1.5, s - 3.0, s - 3.0))
         fat = QPen(color, 1.8)
         fat.setCapStyle(Qt.PenCapStyle.RoundCap)
@@ -81,23 +87,28 @@ class MainWindow(QWidget):
         self.selector.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout.addWidget(self.selector, stretch=1)
 
-        # Wire selector signals before building controls (setValue triggers setSections)
+        # Conecta sinais do seletor antes de construir os controles
+        # (setValue em notas_spin dispara setSections)
         self.selector.signalInstrumentChanged.connect(self._on_instrument_changed)
         self.selector.signalNotes.connect(self._on_notes_changed)
 
         layout.addWidget(self._build_controls_card())
 
-        # Wire BLE signals
+        # Conecta sinais BLE à interface
         self.ble.status_received.connect(self._on_ble_status)
         self.ble.midi_received.connect(self._on_ble_midi)
         self.ble.initial_state.connect(self._apply_initial_state)
 
+        # Desabilita todos os controles até a conexão BLE ser finalizada
+        self._set_controls_enabled(False)
+
         if device:
             asyncio.create_task(self.ble.connect(device))
 
-    # ── Layout builders ───────────────────────────────────────────────────────
+    # ── Construtores de layout ────────────────────────────────────────────────
 
     def _build_topbar(self) -> QFrame:
+        """Constrói a barra superior com botões Salvar, Abrir e Sobre."""
         frame = QFrame()
         frame.setFixedHeight(40)
         frame.setStyleSheet(
@@ -133,6 +144,7 @@ class MainWindow(QWidget):
         return frame
 
     def _build_controls_card(self) -> QFrame:
+        """Constrói o painel inferior com controles de notas, direção, sensibilidade e MIDI."""
         card = QFrame()
         card.setObjectName("ControlsCard")
         card.setStyleSheet(
@@ -144,6 +156,7 @@ class MainWindow(QWidget):
         outer.setSpacing(0)
 
         def muted(text: str) -> QLabel:
+            """Cria um rótulo com cor secundária para identificar controles."""
             lbl = QLabel(text)
             lbl.setStyleSheet(f"color: {MUTED}; font-size: 12px;")
             return lbl
@@ -154,7 +167,7 @@ class MainWindow(QWidget):
         grid.setColumnMinimumWidth(0, 110)
         grid.setColumnStretch(1, 1)
 
-        # ── Row 0: Notes ──────────────────────────────────────────────────────
+        # ── Linha 0: Número de notas/seções ──────────────────────────────────
         self.notas_spin = QSpinBox()
         self.notas_spin.setRange(1, 8)
         self.notas_spin.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -163,7 +176,7 @@ class MainWindow(QWidget):
         grid.addWidget(muted("Notas"), 0, 0)
         grid.addWidget(self.notas_spin, 0, 1)
 
-        # ── Row 1: Direction ─────────────────────────────────────────────────
+        # ── Linha 1: Direção do mapeamento do giroscópio ──────────────────────
         self.dir_combo = QComboBox()
         self.dir_combo.addItems(["Esquerda", "Direita"])
         self.dir_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -171,7 +184,7 @@ class MainWindow(QWidget):
         grid.addWidget(muted("Direção"), 1, 0)
         grid.addWidget(self.dir_combo, 1, 1)
 
-        # ── Row 2: Sensitivity ───────────────────────────────────────────────
+        # ── Linha 2: Sensibilidade do acelerômetro ────────────────────────────
         self.accel_combo = QComboBox()
         for level in AccelLevel:
             self.accel_combo.addItem(level.name.title(), level)
@@ -180,7 +193,7 @@ class MainWindow(QWidget):
         grid.addWidget(muted("Sensibilidade"), 2, 0)
         grid.addWidget(self.accel_combo, 2, 1)
 
-        # ── Row 3: MIDI output + channel (shared row) ────────────────────────
+        # ── Linha 3: Porta MIDI de saída + canal (linha compartilhada) ────────
         self.midi_output_combo = QComboBox()
         self.midi_output_combo.addItems(self.midi.ports)
         self.midi_output_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -206,17 +219,34 @@ class MainWindow(QWidget):
         outer.addLayout(grid)
         return card
 
-    # ── BLE signal handlers ───────────────────────────────────────────────────
+    # ── Manipuladores de sinais BLE ───────────────────────────────────────────
 
     def _on_ble_status(self, gyro: int, touch: bool) -> None:
+        """Atualiza a posição do indicador e o estado de toque no seletor visual."""
         self.selector.gyro  = gyro
         self.selector.touch = touch
         self.selector.update()
 
     def _on_ble_midi(self, msg: list) -> None:
+        """Repassa mensagem MIDI recebida via BLE diretamente à porta MIDI de saída."""
         self.midi.send(msg)
 
+    def _set_controls_enabled(self, enabled: bool) -> None:
+        """Habilita ou desabilita todos os controles interativos da interface.
+
+        Chamado com False ao iniciar a janela e com True ao receber o estado
+        inicial do hardware, garantindo que o usuário não interaja antes da
+        conexão BLE estar completamente estabelecida.
+        """
+        self.selector.setEnabled(enabled)
+        self.notas_spin.setEnabled(enabled)
+        self.dir_combo.setEnabled(enabled)
+        self.accel_combo.setEnabled(enabled)
+        self.midi_output_combo.setEnabled(enabled)
+        self.channel_combo.setEnabled(enabled)
+
     def _apply_initial_state(self, state: dict) -> None:
+        """Popula os controles da UI com o estado lido do hardware na conexão inicial."""
         notes = state.get("notes", [])
         self.notas_spin.setValue(len(notes))
         for combo, note in zip(self.selector.combos, notes):
@@ -235,29 +265,37 @@ class MainWindow(QWidget):
             self.dir_combo.setCurrentIndex(state["direction"])
             self.dir_combo.blockSignals(False)
 
-    # ── UI event handlers ─────────────────────────────────────────────────────
+        # Habilita os controles agora que o estado do hardware foi aplicado
+        self._set_controls_enabled(True)
+
+    # ── Manipuladores de eventos da UI ────────────────────────────────────────
 
     def _on_midi_port_changed(self, idx: int) -> None:
         self.midi.open_port(idx)
 
     @asyncSlot(int, str)
     async def _on_instrument_changed(self, index: int, name: str) -> None:
+        """Envia Program Change MIDI ao trocar o instrumento no seletor circular."""
         ch = max(0, min(15, int(self.channel_combo.currentText()) - 1))
         self.midi.program_change(ch, max(0, min(127, index)))
 
     @asyncSlot(list)
     async def _on_notes_changed(self, notes_list: list) -> None:
+        """Envia as notas atualizadas ao hardware via BLE."""
         await self.ble.write_sections(notes_list)
 
     @asyncSlot(int)
     async def _on_accel_changed(self, idx: int) -> None:
+        """Envia o novo nível de sensibilidade do acelerômetro ao hardware."""
         level = self.accel_combo.itemData(idx)
         await self.ble.write_accel(level)
 
     @asyncSlot(int)
     async def _on_direction_changed(self, idx: int) -> None:
+        """Envia a direção do mapeamento do giroscópio ao hardware."""
         await self.ble.write_direction(idx)
 
     @asyncSlot()
     async def _on_calibrate(self) -> None:
+        """Dispara calibração do MPU6050 no hardware."""
         await self.ble.calibrate()
