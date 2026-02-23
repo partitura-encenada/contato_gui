@@ -1,3 +1,9 @@
+"""ComboBox compacto para seleção de nota no seletor circular.
+
+Enter/Return alterna a visibilidade do popup em vez de confirmar a seleção,
+facilitando a navegação no layout circular sem fechar acidentalmente.
+"""
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QComboBox
 
@@ -5,7 +11,7 @@ from ui.theme import RAISED, BORDER, ACCENT, TEXT
 
 
 class ToggleEnterComboBox(QComboBox):
-    """Compact combo box where Enter/Return toggles the popup."""
+    """ComboBox compacto onde Enter/Return alterna o popup."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -33,6 +39,7 @@ class ToggleEnterComboBox(QComboBox):
         """)
 
     def keyPressEvent(self, e):
+        """Alterna popup com Enter/Return; demais teclas seguem comportamento padrão."""
         if e.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             if getattr(self.view, "isVisible", lambda: False)():
                 self.hidePopup()

@@ -1,20 +1,28 @@
+"""Descoberta de dispositivos BLE MIDI próximos.
+
+Utiliza o BleakScanner para varrer anúncios BLE filtrando pelo UUID
+do serviço BLE MIDI padrão, e apresenta um diálogo de seleção ao usuário.
+"""
+import os
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QListWidget, QListWidgetItem,
 )
+from PyQt6.QtGui import QIcon
 from bleak import BleakScanner
 
 from constants import BLE_MIDI_SERVICE_UUID
 
-# Import lazily to avoid circular issues at module load time
+# Importação tardia para evitar importação circular no carregamento do módulo
 def _theme():
     from ui.theme import BG, SURFACE, BORDER, ACCENT, ACCENT2, TEXT, MUTED
     return BG, SURFACE, BORDER, ACCENT, ACCENT2, TEXT, MUTED
 
 
 async def scan_devices() -> list:
-    """Scan for BLE MIDI devices and return the list."""
+    """Varre dispositivos BLE MIDI e retorna a lista encontrada (timeout 3s)."""
     return await BleakScanner.discover(
         timeout=3.0,
         service_uuids=[BLE_MIDI_SERVICE_UUID],
@@ -22,14 +30,16 @@ async def scan_devices() -> list:
 
 
 def pick_device(devices: list, parent=None):
-    """Show a dialog to pick one device from a pre-scanned list.
+    """Exibe diálogo modal para o usuário escolher um dispositivo da lista.
 
-    Returns the selected BleakDevice, or None if cancelled.
+    Retorna o BleakDevice selecionado, ou None se o usuário cancelar.
     """
     BG, SURFACE, BORDER, ACCENT, ACCENT2, TEXT, MUTED = _theme()
 
     dlg = QDialog(parent)
     dlg.setWindowTitle("Selecionar dispositivo BLE")
+    icon_path = os.path.join(os.path.dirname(__file__), "..", "icon.ico")
+    dlg.setWindowIcon(QIcon(icon_path))
     dlg.setModal(True)
     dlg.setMinimumWidth(360)
     dlg.setStyleSheet(f"QDialog {{ background: {BG}; }}")
@@ -38,6 +48,7 @@ def pick_device(devices: list, parent=None):
     layout.setContentsMargins(20, 18, 20, 18)
     layout.setSpacing(12)
 
+    # Cabeçalho do diálogo
     heading = QLabel("Dispositivos encontrados")
     heading.setStyleSheet(
         f"color: {TEXT}; font-size: 14px; font-weight: bold; background: transparent;"
@@ -47,6 +58,7 @@ def pick_device(devices: list, parent=None):
     layout.addWidget(heading)
     layout.addWidget(sub)
 
+    # Lista de dispositivos descobertos (nome + endereço MAC)
     listw = QListWidget(dlg)
     listw.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
     listw.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -56,6 +68,7 @@ def pick_device(devices: list, parent=None):
         listw.addItem(item)
     layout.addWidget(listw)
 
+    # Botões de ação
     hl = QHBoxLayout()
     hl.setSpacing(8)
     btn_cancel = QPushButton("Cancelar")

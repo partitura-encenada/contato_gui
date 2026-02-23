@@ -1,8 +1,11 @@
+# Ponto de entrada da aplicação Contato GUI.
+# Configura o loop de eventos assíncrono do Qt via qasync e inicia a corrotina principal.
+
 import sys
 import os
 import asyncio
 
-# Ensure src/ is on the path so sibling packages resolve correctly
+# Garante que o diretório src/ esteja no path para resolver pacotes irmãos
 sys.path.insert(0, os.path.dirname(__file__))
 
 from qasync import QApplication as QAsyncApplication, QEventLoop

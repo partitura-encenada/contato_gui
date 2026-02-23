@@ -1,3 +1,9 @@
+"""Inicialização da aplicação e fluxo principal de arranque.
+
+Aplica o tema escuro, exibe a tela de carregamento, varre dispositivos BLE,
+apresenta o seletor de dispositivo e, após a conexão, abre a janela principal.
+"""
+
 import asyncio
 
 from PyQt6.QtGui import QPalette, QColor
@@ -12,9 +18,12 @@ from ui.theme import STYLESHEET, BG, SURFACE, RAISED, TEXT, ACCENT, ACCENT2
 
 
 def _apply_dark_palette(app) -> None:
-    """Use Fusion style + a dark QPalette so native subcontrols (arrows,
-    scrollbars, spinbox buttons) render in light colours automatically,
-    without needing any QSS subcontrol overrides."""
+    """Aplica estilo Fusion com QPalette escura.
+
+    Usar QPalette em vez de QSS para subcontroles nativos (setas, barras de
+    rolagem, botões de spinbox) garante que renderizem em cores claras
+    automaticamente, sem necessidade de regras QSS adicionais.
+    """
     app.setStyle("Fusion")
 
     p = QPalette()
@@ -33,6 +42,7 @@ def _apply_dark_palette(app) -> None:
     p.setColor(QPalette.ColorRole.Highlight,        c(ACCENT2))
     p.setColor(QPalette.ColorRole.HighlightedText,  c("#ffffff"))
 
+    # Cores para widgets desabilitados
     dis = QPalette.ColorGroup.Disabled
     p.setColor(dis, QPalette.ColorRole.WindowText, c("#475569"))
     p.setColor(dis, QPalette.ColorRole.Text,        c("#475569"))
@@ -42,12 +52,14 @@ def _apply_dark_palette(app) -> None:
 
 
 async def main_async(app) -> None:
+    """Corrotina principal: configura tema, varre BLE, conecta e exibe a janela."""
     _apply_dark_palette(app)
     app.setStyleSheet(STYLESHEET)
 
     app_close_event = asyncio.Event()
     app.aboutToQuit.connect(app_close_event.set)
 
+    # Exibe splash enquanto a varredura BLE ocorre em segundo plano
     splash = SplashScreen()
     splash.show()
     app.processEvents()
@@ -69,4 +81,5 @@ async def main_async(app) -> None:
     win.setWindowTitle("Contato GUI")
     win.show()
 
+    # Aguarda o sinal de fechamento da aplicação antes de encerrar o loop
     await app_close_event.wait()
