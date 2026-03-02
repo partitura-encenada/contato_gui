@@ -4,6 +4,8 @@ Abstrai a abertura de portas e o envio de mensagens MIDI brutas,
 incluindo Program Change para seleção de instrumento.
 """
 
+import threading
+
 import rtmidi
 
 
@@ -44,3 +46,16 @@ class MidiManager:
         status = 0xC0 | (channel & 0x0F)
         self.send([status, program & 0x7F])
         print(f"Program Change → ch={channel + 1}, prog={program}")
+
+    def all_notes_off(self, channel: int) -> None:
+        """Envia All Notes Off (CC 123) no canal especificado."""
+        self.send([0xB0 | (channel & 0x0F), 123, 0])
+
+    def preview_note(self, channel: int, note: int, duration_ms: int = 350) -> None:
+        """Toca uma nota brevemente para pré-visualização (note-on + note-off automático)."""
+        self.send([0x90 | (channel & 0x0F), note & 0x7F, 80])
+        threading.Timer(
+            duration_ms / 1000.0,
+            self.send,
+            args=([0x80 | (channel & 0x0F), note & 0x7F, 0],),
+        ).start()

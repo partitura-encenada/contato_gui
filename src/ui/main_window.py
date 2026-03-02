@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QPen, QColor
 from qasync import asyncSlot
 
-from constants import AccelLevel
+from constants import AccelLevel, name_to_midi
 from config import save_setup, load_setup
 from ble.client import BleConnection
 from midi.manager import MidiManager
@@ -91,13 +91,19 @@ class MainWindow(QWidget):
         # (setValue em notas_spin dispara setSections)
         self.selector.signalInstrumentChanged.connect(self._on_instrument_changed)
         self.selector.signalNotes.connect(self._on_notes_changed)
+        self.selector.signalNotePreview.connect(self._on_note_preview)
 
         layout.addWidget(self._build_controls_card())
+        layout.addWidget(self._build_footer())
 
         # Conecta sinais BLE à interface
         self.ble.status_received.connect(self._on_ble_status)
         self.ble.midi_received.connect(self._on_ble_midi)
         self.ble.initial_state.connect(self._apply_initial_state)
+
+        # Estado interno para detecção de transições de toque
+        self._last_touch      = False
+        self._last_touch_note = ""
 
         # Desabilita todos os controles até a conexão BLE ser finalizada
         self._set_controls_enabled(False)
@@ -141,6 +147,21 @@ class MainWindow(QWidget):
         topbar.addStretch()
         topbar.addWidget(about_btn)
 
+        return frame
+
+    def _build_footer(self) -> QFrame:
+        """Constrói a barra de status inferior com mensagens do estado do programa."""
+        frame = QFrame()
+        frame.setFixedHeight(22)
+        frame.setStyleSheet(
+            f"QFrame {{ background-color: {SURFACE}; border-top: 1px solid {BORDER}; }}"
+        )
+        row = QHBoxLayout(frame)
+        row.setContentsMargins(10, 0, 10, 0)
+        self._status_label = QLabel("—")
+        self._status_label.setStyleSheet(f"color: {MUTED}; font-size: 11px;")
+        row.addWidget(self._status_label)
+        row.addStretch()
         return frame
 
     def _build_controls_card(self) -> QFrame:
@@ -221,8 +242,27 @@ class MainWindow(QWidget):
 
     # ── Manipuladores de sinais BLE ───────────────────────────────────────────
 
+    def _set_status(self, msg: str) -> None:
+        """Atualiza o texto da barra de status inferior."""
+        self._status_label.setText(msg)
+
+    def _current_note_name(self, gyro: int) -> str:
+        """Retorna o nome da nota correspondente à posição atual do giroscópio."""
+        notes = [c.currentText() for c in self.selector.combos]
+        if not notes:
+            return "?"
+        section = int((-gyro + 89) / (2 * 89) * len(notes))
+        section = max(0, min(len(notes) - 1, section))
+        return notes[section]
+
     def _on_ble_status(self, gyro: int, touch: bool) -> None:
-        """Atualiza a posição do indicador e o estado de toque no seletor visual."""
+        """Atualiza o indicador visual e detecta transições de toque para o rodapé."""
+        if touch and not self._last_touch:
+            self._last_touch_note = self._current_note_name(gyro)
+            self._set_status(f"Nota {self._last_touch_note} ativada")
+        elif not touch and self._last_touch:
+            self._set_status(f"Nota {self._last_touch_note} desativada")
+        self._last_touch    = touch
         self.selector.gyro  = gyro
         self.selector.touch = touch
         self.selector.update()
@@ -248,9 +288,22 @@ class MainWindow(QWidget):
     def _apply_initial_state(self, state: dict) -> None:
         """Popula os controles da UI com o estado lido do hardware na conexão inicial."""
         notes = state.get("notes", [])
+
+        # Bloqueia notas_spin para não disparar setSections via valueChanged
+        self.notas_spin.blockSignals(True)
         self.notas_spin.setValue(len(notes))
+        self.notas_spin.blockSignals(False)
+
+        # Chama setSections manualmente com sinais do seletor bloqueados
+        # para não emitir signalNotes com os valores padrão "C3"
+        self.selector.blockSignals(True)
+        self.selector.setSections(len(notes))
+        self.selector.blockSignals(False)
+
         for combo, note in zip(self.selector.combos, notes):
+            combo.blockSignals(True)
             combo.setCurrentText(note)
+            combo.blockSignals(False)
 
         if "accel_level" in state:
             level = state["accel_level"]
@@ -278,6 +331,13 @@ class MainWindow(QWidget):
         """Envia Program Change MIDI ao trocar o instrumento no seletor circular."""
         ch = max(0, min(15, int(self.channel_combo.currentText()) - 1))
         self.midi.program_change(ch, max(0, min(127, index)))
+
+    def _on_note_preview(self, note_name: str) -> None:
+        """Silencia notas em curso e toca brevemente a nota selecionada para pré-visualização."""
+        ch = max(0, min(15, int(self.channel_combo.currentText()) - 1))
+        self.midi.all_notes_off(ch)
+        self.midi.preview_note(ch, name_to_midi(note_name))
+        self._set_status(f"Pré-visualização: {note_name}")
 
     @asyncSlot(list)
     async def _on_notes_changed(self, notes_list: list) -> None:
