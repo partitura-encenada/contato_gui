@@ -32,6 +32,7 @@ _C_DIVIDER = QColor(_C_ACCENT.red(), _C_ACCENT.green(), _C_ACCENT.blue(), 45)
 class WNotesSelector(QFrame):
     signalInstrumentChanged = pyqtSignal(int, str)  # (índice, nome) ao trocar instrumento
     signalNotes             = pyqtSignal(list)       # lista de nomes de notas ao alterar seções
+    signalNotePreview       = pyqtSignal(str)        # nome da nota selecionada para pré-visualização
 
     def __init__(self, sections: int = 6, ticks: int = 30, parent=None):
         super().__init__(parent)
@@ -134,9 +135,14 @@ class WNotesSelector(QFrame):
         for note in new_notes:
             combo = ToggleEnterComboBox(self)
             combo.addItems(self._all_notes)
+            combo.blockSignals(True)
             combo.setCurrentText(note)
+            combo.blockSignals(False)
             combo.currentIndexChanged.connect(
                 lambda _: self.signalNotes.emit([c.currentText() for c in self.combos])
+            )
+            combo.currentIndexChanged.connect(
+                lambda _, c=combo: self.signalNotePreview.emit(c.currentText())
             )
             combo.show()
             self.combos.append(combo)
