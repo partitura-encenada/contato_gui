@@ -1,0 +1,72 @@
+import asyncio
+
+from PyQt6.QtGui import QPalette, QColor
+
+from ble.scanner import scan_devices, pick_device
+from ble.client import BleConnection
+from midi.manager import MidiManager
+from constants import PORT_INDEX
+from ui.main_window import MainWindow
+from ui.splash import SplashScreen
+from ui.theme import STYLESHEET, BG, SURFACE, RAISED, TEXT, ACCENT, ACCENT2
+
+
+def _apply_dark_palette(app) -> None:
+    """Use Fusion style + a dark QPalette so native subcontrols (arrows,
+    scrollbars, spinbox buttons) render in light colours automatically,
+    without needing any QSS subcontrol overrides."""
+    app.setStyle("Fusion")
+
+    p = QPalette()
+    c = QColor
+    p.setColor(QPalette.ColorRole.Window,          c(BG))
+    p.setColor(QPalette.ColorRole.WindowText,       c(TEXT))
+    p.setColor(QPalette.ColorRole.Base,             c(RAISED))
+    p.setColor(QPalette.ColorRole.AlternateBase,    c(SURFACE))
+    p.setColor(QPalette.ColorRole.ToolTipBase,      c(SURFACE))
+    p.setColor(QPalette.ColorRole.ToolTipText,      c(TEXT))
+    p.setColor(QPalette.ColorRole.Text,             c(TEXT))
+    p.setColor(QPalette.ColorRole.Button,           c(SURFACE))
+    p.setColor(QPalette.ColorRole.ButtonText,       c(TEXT))
+    p.setColor(QPalette.ColorRole.BrightText,       c(ACCENT))
+    p.setColor(QPalette.ColorRole.Link,             c(ACCENT))
+    p.setColor(QPalette.ColorRole.Highlight,        c(ACCENT2))
+    p.setColor(QPalette.ColorRole.HighlightedText,  c("#ffffff"))
+
+    dis = QPalette.ColorGroup.Disabled
+    p.setColor(dis, QPalette.ColorRole.WindowText, c("#475569"))
+    p.setColor(dis, QPalette.ColorRole.Text,        c("#475569"))
+    p.setColor(dis, QPalette.ColorRole.ButtonText,  c("#475569"))
+
+    app.setPalette(p)
+
+
+async def main_async(app) -> None:
+    _apply_dark_palette(app)
+    app.setStyleSheet(STYLESHEET)
+
+    app_close_event = asyncio.Event()
+    app.aboutToQuit.connect(app_close_event.set)
+
+    splash = SplashScreen()
+    splash.show()
+    app.processEvents()
+
+    devices = await scan_devices()
+
+    splash.close()
+
+    selected = pick_device(devices, parent=None)
+    if not selected:
+        print("Nenhum dispositivo selecionado — encerrando.")
+        app.quit()
+        return
+
+    midi = MidiManager(PORT_INDEX)
+    ble  = BleConnection()
+
+    win = MainWindow(ble=ble, midi=midi, device=selected)
+    win.setWindowTitle("Contato GUI")
+    win.show()
+
+    await app_close_event.wait()
