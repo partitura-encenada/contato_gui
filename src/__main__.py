@@ -1,14 +1,8 @@
-"""Legacy entry point — delegates to the refactored package structure.
-
-Run via:
-    python src/App.py
-or (preferred):
-    python src/__main__.py
-"""
 import sys
 import os
 import asyncio
 
+# Ensure src/ is on the path so sibling packages resolve correctly
 sys.path.insert(0, os.path.dirname(__file__))
 
 from qasync import QApplication as QAsyncApplication, QEventLoop

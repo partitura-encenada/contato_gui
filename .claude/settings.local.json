@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"C:\\\\Users\\\\Arthur Ranquine\\\\Repositórios\\\\contato_gui\" show --stat HEAD)",
+      "Bash(git -C \"C:\\\\Users\\\\Arthur Ranquine\\\\Repositórios\\\\contato_gui\" remote -v)",
+      "Bash(git restore:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(code .:*)"
+    ]
+  }
+}
