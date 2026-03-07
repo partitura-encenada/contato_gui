@@ -9,7 +9,7 @@ import asyncio
 sys.path.insert(0, os.path.dirname(__file__))
 
 from qasync import QApplication as QAsyncApplication, QEventLoop
-from ui.app import main_async
+from app import main_async
 
 if __name__ == "__main__":
     qapp = QAsyncApplication(sys.argv)
