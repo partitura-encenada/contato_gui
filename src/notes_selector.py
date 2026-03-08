@@ -27,28 +27,25 @@ _C_DIVIDER = QColor(50, 150, 210, 45)
 
 
 class SeletorCircular(QFrame):
-    signalInstrumentChanged = pyqtSignal(int, str)  # (índice, nome) ao trocar instrumento
-    signalNotes             = pyqtSignal(list)       # lista de nomes de notas ao alterar seções
-    signalNotePreview       = pyqtSignal(str)        # nome da nota selecionada para pré-visualização
+    signalInstrumentChanged = pyqtSignal(int, str)
+    signalNotes             = pyqtSignal(list)
+    signalNotePreview       = pyqtSignal(str)
 
     def __init__(self, sections: int = 6, ticks: int = 30, parent=None):
         super().__init__(parent)
         self.setMinimumSize(560, 480)
 
-        # Parâmetros geométricos do arco
         self.margin     = 15
-        self.offset     = 80   # deslocamento horizontal do centro para dar espaço aos combos
+        self.offset     = 80
         self.sections   = sections
         self.ticks      = ticks
-        self.tick_long  = 14   # comprimento das marcações principais (múltiplos de 5)
-        self.tick_short = 7    # comprimento das marcações secundárias
+        self.tick_long  = 14
+        self.tick_short = 7
         self.combos: list[ToggleEnterComboBox] = []
 
-        # Estado do sensor (atualizado via sinal BLE)
         self.gyro  = 0
-        self.touch = True
+        self.touch = False
 
-        # Lista completa de notas disponíveis nos combos (C1–B5)
         self._all_notes = [
             f"{note} {octave}"
             for octave in range(1, 6)
@@ -58,7 +55,6 @@ class SeletorCircular(QFrame):
         self.instruments = INSTRUMENTS
         self.current_instrument_index = 0
 
-        # Botão central circular — exibe emoji do instrumento atual
         icon, _ = self.instruments[0]
         self.center_button = QPushButton(icon, self)
         self.center_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -72,7 +68,6 @@ class SeletorCircular(QFrame):
 
     @staticmethod
     def _make_hand_icon() -> QPixmap:
-        """Cria o ícone de seta/mão que indica a posição atual do giroscópio."""
         pix = QPixmap(22, 22)
         pix.fill(Qt.GlobalColor.transparent)
         p = QPainter(pix)
@@ -87,21 +82,37 @@ class SeletorCircular(QFrame):
         p.end()
         return pix
 
+    def _reposition_widgets(self) -> None:
+        """Reposiciona o botão central e os combos com base no tamanho atual do widget."""
+        w, h = self.width(), self.height()
+        if w == 0 or h == 0:
+            return
+        cx, cy = w / 2 - self.offset, h / 2
+        r = min((h / 2) - self.margin, (w - cx) - self.margin)
+        section_angle = math.pi / max(1, self.sections)
+
+        bw, bh = self.center_button.width(), self.center_button.height()
+        self.center_button.move(int(cx - bw / 2), int(cy - bh / 2))
+
+        for i, combo in enumerate(self.combos):
+            mid = -math.pi / 2 + section_angle * (i + 0.5)
+            rr  = r * 0.6
+            x   = cx + rr * math.cos(mid) - combo.width()  / 2
+            y   = cy + rr * math.sin(mid) - combo.height() / 2
+            combo.move(int(x), int(y))
+
     # ── API pública ───────────────────────────────────────────────────────────
 
     def setSections(self, count: int) -> None:
-        """Redefine o número de seções, preservando notas existentes quando possível."""
         count = int(count)
         old_notes = [c.currentText() for c in self.combos]
 
         self.sections = count
-        # Mantém notas anteriores; preenche com 'C3' se o número aumentou
         new_notes = (
             old_notes[:count] if count <= len(old_notes)
-            else old_notes + ["Dó 3"] * (count - len(old_notes))
+            else old_notes + [f"{NOTE_NAMES[0]} 3"] * (count - len(old_notes))
         )
 
-        # Remove combos antigos e recria com as notas atualizadas
         for c in self.combos:
             c.deleteLater()
         self.combos = []
@@ -122,28 +133,10 @@ class SeletorCircular(QFrame):
             self.combos.append(combo)
 
         self.signalNotes.emit([c.currentText() for c in self.combos])
-
-        w, h = self.width(), self.height()
-        if w > 0 and h > 0:
-            cx, cy = w / 2 - self.offset, h / 2
-            r = min((h / 2) - self.margin, (w - cx) - self.margin)
-            section_angle = math.pi / max(1, self.sections)
-            start_ang = -math.pi / 2
-
-            bw, bh = self.center_button.width(), self.center_button.height()
-            self.center_button.move(int(cx - bw / 2), int(cy - bh / 2))
-
-            for i, combo in enumerate(self.combos):
-                mid = start_ang + section_angle * (i + 0.5)
-                rr  = r * 0.6
-                x   = cx + rr * math.cos(mid) - combo.width()  / 2
-                y   = cy + rr * math.sin(mid) - combo.height() / 2
-                combo.move(int(x), int(y))
-
+        self._reposition_widgets()
         self.update()
 
     def setInstrument(self, index: int, dialog=None) -> None:
-        """Atualiza o instrumento exibido no botão central e emite o sinal."""
         self.current_instrument_index = index
         icon, name = self.instruments[index]
         self.center_button.setText(icon)
@@ -154,12 +147,17 @@ class SeletorCircular(QFrame):
     # ── Seletor de instrumento ────────────────────────────────────────────────
 
     def _show_instrument_selector(self) -> None:
-        """Abre o diálogo de seleção de instrumento ao clicar no botão central."""
         dlg = InstrumentSelectorDialog(
             self.instruments, self.current_instrument_index, self
         )
         dlg.instrumentSelected.connect(lambda idx: self.setInstrument(idx, None))
         dlg.exec()
+
+    # ── Eventos ───────────────────────────────────────────────────────────────
+
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
+        self._reposition_widgets()
 
     # ── Pintura ───────────────────────────────────────────────────────────────
 
@@ -172,11 +170,9 @@ class SeletorCircular(QFrame):
         r = min((h / 2) - self.margin, (w - cx) - self.margin)
 
         section_angle    = math.pi / max(1, self.sections)
-        # Tick correspondente à posição atual do giroscópio
         selected_tick    = int(
             ((self.gyro * math.pi / -180) + math.pi / 2) / (math.pi / self.ticks)
         )
-        # Seção correspondente à posição atual do giroscópio
         selected_section = int(
             ((self.gyro * math.pi / -180) + math.pi / 2) / (math.pi / self.sections)
         )
@@ -187,7 +183,6 @@ class SeletorCircular(QFrame):
         painter.setPen(QPen(_C_TRACK, 1.5))
         painter.drawArc(arc_rect, 90 * 16, -180 * 16)
 
-        # Arco interno
         inner_r = r * 0.3
         inner_rect = QRectF(cx - inner_r, cy - inner_r, 2 * inner_r, 2 * inner_r)
         painter.setPen(QPen(_C_TRACK, 1))
@@ -200,7 +195,6 @@ class SeletorCircular(QFrame):
             tl = self.tick_long if i % 5 == 0 else self.tick_short
             ix, iy = cx + (r - tl) * math.cos(t), cy + (r - tl) * math.sin(t)
 
-            # No tick selecionado, desenha o ícone de mão rotacionado
             if i == selected_tick:
                 ang_deg = math.degrees(t)
                 rotated = self._hand_icon.transformed(
@@ -213,7 +207,6 @@ class SeletorCircular(QFrame):
                 painter.drawPixmap(int(px), int(py), rotated)
                 continue
 
-            # Destaca ticks dentro da seção ativa quando tocando
             in_section = (
                 0 <= selected_section < self.sections
                 and selected_section * section_angle
@@ -225,14 +218,14 @@ class SeletorCircular(QFrame):
             if highlight:
                 pen = QPen(_C_ACCENT, 2.5)
             elif i % 5 == 0:
-                pen = QPen(QColor(148, 163, 184), 1.5)  # marcação principal mais brilhante
+                pen = QPen(QColor(148, 163, 184), 1.5)
             else:
                 pen = QPen(_C_TICK, 1)
 
             painter.setPen(pen)
             painter.drawLine(QPointF(ix, iy), QPointF(ox, oy))
 
-        # ── Rótulo "0°" na extremidade direita do arco ───────────────────────
+        # ── Rótulo "0°" ───────────────────────────────────────────────────────
         painter.setPen(QColor(100, 116, 139, 180))
         f = painter.font()
         f.setPointSize(8)
@@ -245,7 +238,6 @@ class SeletorCircular(QFrame):
             x1, y1 = cx + r * 0.3 * math.cos(t), cy + r * 0.3 * math.sin(t)
             x2, y2 = cx + r * 0.8 * math.cos(t), cy + r * 0.8 * math.sin(t)
 
-            # Destaca os divisores da seção ativa com pulso
             if i in (selected_section, selected_section + 1) and self.touch:
                 pen = QPen(_C_ACCENT, 2)
             else:

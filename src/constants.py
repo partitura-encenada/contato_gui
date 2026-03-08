@@ -18,14 +18,15 @@ BLE_MIDI_SERVICE_UUID         = '03b80e5a-ede8-4b33-a751-6ce34ec4c700'  # servi�
 
 class AccelLevel(Enum):
     """Níveis de sensibilidade do acelerômetro enviados ao hardware."""
-    SUAVE = 800    # baixa sensibilidade — requer movimento mais brusco
-    MÉDIO = 1250   # sensibilidade intermediária
-    FORTE = 1600   # alta sensibilidade — responde a movimentos suaves
+    SUAVE = 800    # limiar baixo — responde a movimentos suaves
+    MÉDIO = 1250   # limiar intermediário
+    FORTE = 1600   # limiar alto — requer movimentos mais intensos
 
 # ── UI ────────────────────────────────────────────────────────────────────────
 
 PRIMARY_COLOR = QColor(100, 180, 255)  # cor de destaque principal (azul claro)
 PORT_INDEX    = 0                       # índice padrão da porta MIDI de saída
+GYRO_MAX_DEG  = 90                      # deve coincidir com GYRO_MAX_DEG no firmware
 
 # ── Música ───────────────────────────────────────────────────────────────────
 

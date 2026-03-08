@@ -18,7 +18,7 @@ class ToggleEnterComboBox(QComboBox):
     def keyPressEvent(self, e):
         """Alterna popup com Enter/Return; demais teclas seguem comportamento padrão."""
         if e.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            if getattr(self.view, "isVisible", lambda: False)():
+            if self.view().isVisible():
                 self.hidePopup()
             else:
                 self.showPopup()
