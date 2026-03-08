@@ -8,28 +8,25 @@ o sensor de toque está pressionado.
 
 import math
 
-from PyQt6.QtCore import Qt, QPointF, QRectF, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QPointF, QRectF, pyqtSignal
 from PyQt6.QtWidgets import QFrame, QPushButton
 from PyQt6.QtGui import (
     QPainter, QPen, QColor, QPixmap, QPainterPath,
-    QTransform, QRadialGradient, QBrush,
+    QTransform,
 )
 
-from constants import NOTE_NAMES, INSTRUMENTS, PRIMARY_COLOR
+from constants import NOTE_NAMES, INSTRUMENTS
 from combo_box import ToggleEnterComboBox
 from instrument_dialog import InstrumentSelectorDialog
-from theme import BG, SURFACE, RAISED, BORDER, ACCENT, ACCENT2
 
 
-# Cores pré-calculadas para o paintEvent (derivadas do tema para propagação automática)
-_C_BG      = QColor(BG)
-_C_TRACK   = QColor(71, 85, 105, 80)   # trilha do arco (discreta)
-_C_TICK    = QColor(100, 120, 140)     # marcação em repouso
-_C_ACCENT  = QColor(ACCENT)           # cor de destaque do tema
-_C_DIVIDER = QColor(_C_ACCENT.red(), _C_ACCENT.green(), _C_ACCENT.blue(), 45)
+_C_TRACK   = QColor(71, 85, 105, 80)
+_C_TICK    = QColor(100, 120, 140)
+_C_ACCENT  = QColor(50, 150, 210)
+_C_DIVIDER = QColor(50, 150, 210, 45)
 
 
-class WNotesSelector(QFrame):
+class SeletorCircular(QFrame):
     signalInstrumentChanged = pyqtSignal(int, str)  # (índice, nome) ao trocar instrumento
     signalNotes             = pyqtSignal(list)       # lista de nomes de notas ao alterar seções
     signalNotePreview       = pyqtSignal(str)        # nome da nota selecionada para pré-visualização
@@ -51,12 +48,6 @@ class WNotesSelector(QFrame):
         self.gyro  = 0
         self.touch = True
 
-        # Animação de pulso na seção ativa durante o toque
-        self.pulse_phase = 0.0
-        self._pulse_timer = QTimer(self)
-        self._pulse_timer.timeout.connect(self._update_pulse)
-        self._pulse_timer.start(30)  # ~33 fps
-
         # Lista completa de notas disponíveis nos combos (C1–B5)
         self._all_notes = [
             f"{note}{octave}"
@@ -72,19 +63,7 @@ class WNotesSelector(QFrame):
         self.center_button = QPushButton(icon, self)
         self.center_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.center_button.setFixedSize(90, 90)
-        self.center_button.setStyleSheet(f"""
-            QPushButton {{
-                border-radius: 45px;
-                font-size: 32px;
-                background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-                    stop:0 {RAISED}, stop:1 {SURFACE});
-                border: 2px solid {BORDER};
-                color: #fff;
-            }}
-            QPushButton:hover  {{ border: 2px solid {ACCENT}; background: {RAISED}; }}
-            QPushButton:focus  {{ border: 2px solid {ACCENT}; }}
-            QPushButton:pressed {{ background: {SURFACE}; }}
-        """)
+        self.center_button.setStyleSheet("QPushButton { border-radius: 45px; font-size: 32px; }")
         self.center_button.clicked.connect(self._show_instrument_selector)
 
         self._hand_icon = self._make_hand_icon()
@@ -103,15 +82,10 @@ class WNotesSelector(QFrame):
         path.lineTo(10, 15); path.lineTo(15, 11); path.lineTo(10, 7)
         path.closeSubpath()
         p.setPen(QPen(_C_ACCENT, 2))
-        p.setBrush(QColor(_C_ACCENT.red(), _C_ACCENT.green(), _C_ACCENT.blue(), 60))
+        p.setBrush(_C_ACCENT)
         p.drawPath(path)
         p.end()
         return pix
-
-    def _update_pulse(self):
-        """Avança a fase da animação senoidal de pulso e solicita repintura."""
-        self.pulse_phase = (self.pulse_phase + 0.1) % (2 * math.pi)
-        self.update()
 
     # ── API pública ───────────────────────────────────────────────────────────
 
@@ -124,7 +98,7 @@ class WNotesSelector(QFrame):
         # Mantém notas anteriores; preenche com 'C3' se o número aumentou
         new_notes = (
             old_notes[:count] if count <= len(old_notes)
-            else old_notes + ["C3"] * (count - len(old_notes))
+            else old_notes + ["Dó 3"] * (count - len(old_notes))
         )
 
         # Remove combos antigos e recria com as notas atualizadas
@@ -148,7 +122,24 @@ class WNotesSelector(QFrame):
             self.combos.append(combo)
 
         self.signalNotes.emit([c.currentText() for c in self.combos])
-        self._reposition_widgets()
+
+        w, h = self.width(), self.height()
+        if w > 0 and h > 0:
+            cx, cy = w / 2 - self.offset, h / 2
+            r = min((h / 2) - self.margin, (w - cx) - self.margin)
+            section_angle = math.pi / max(1, self.sections)
+            start_ang = -math.pi / 2
+
+            bw, bh = self.center_button.width(), self.center_button.height()
+            self.center_button.move(int(cx - bw / 2), int(cy - bh / 2))
+
+            for i, combo in enumerate(self.combos):
+                mid = start_ang + section_angle * (i + 0.5)
+                rr  = r * 0.6
+                x   = cx + rr * math.cos(mid) - combo.width()  / 2
+                y   = cy + rr * math.sin(mid) - combo.height() / 2
+                combo.move(int(x), int(y))
+
         self.update()
 
     def setInstrument(self, index: int, dialog=None) -> None:
@@ -159,35 +150,6 @@ class WNotesSelector(QFrame):
         self.signalInstrumentChanged.emit(index, name)
         if dialog:
             dialog.accept()
-
-    # ── Layout interno ────────────────────────────────────────────────────────
-
-    def _reposition_widgets(self) -> None:
-        """Calcula e aplica as posições dos combos e do botão central no arco."""
-        w, h = self.width(), self.height()
-        if w == 0 or h == 0:
-            return
-
-        cx, cy = w / 2 - self.offset, h / 2
-        r = min((h / 2) - self.margin, (w - cx) - self.margin)
-        section_angle = math.pi / max(1, self.sections)
-        start_ang = -math.pi / 2
-
-        # Centraliza o botão de instrumento no pivot do arco
-        bw, bh = self.center_button.width(), self.center_button.height()
-        self.center_button.move(int(cx - bw / 2), int(cy - bh / 2))
-
-        # Posiciona cada combo no meio angular da sua seção, a 60% do raio
-        for i, combo in enumerate(self.combos):
-            mid = start_ang + section_angle * (i + 0.5)
-            rr  = r * 0.6
-            x   = cx + rr * math.cos(mid) - combo.width()  / 2
-            y   = cy + rr * math.sin(mid) - combo.height() / 2
-            combo.move(int(x), int(y))
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._reposition_widgets()
 
     # ── Seletor de instrumento ────────────────────────────────────────────────
 
@@ -209,15 +171,6 @@ class WNotesSelector(QFrame):
         cx, cy = w / 2 - self.offset, h / 2
         r = min((h / 2) - self.margin, (w - cx) - self.margin)
 
-        # ── Fundo ────────────────────────────────────────────────────────────
-        painter.fillRect(self.rect(), _C_BG)
-
-        # Brilho radial suave centrado no pivot do arco
-        grad = QRadialGradient(cx, cy, r * 1.1)
-        grad.setColorAt(0.0, QColor(_C_ACCENT.red() // 4, _C_ACCENT.green() // 3, _C_ACCENT.blue() // 3, 40))
-        grad.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.fillRect(self.rect(), QBrush(grad))
-
         section_angle    = math.pi / max(1, self.sections)
         # Tick correspondente à posição atual do giroscópio
         selected_tick    = int(
@@ -229,19 +182,16 @@ class WNotesSelector(QFrame):
         )
         start_ang, end_ang = -math.pi / 2, math.pi / 2
 
-        # ── Trilha do arco externo ────────────────────────────────────────────
+        # ── Arco externo ────────────────────────────────────────────
         arc_rect = QRectF(cx - r, cy - r, 2 * r, 2 * r)
         painter.setPen(QPen(_C_TRACK, 1.5))
         painter.drawArc(arc_rect, 90 * 16, -180 * 16)
 
-        # Anel interno fino (referência de limite de seção)
+        # Arco interno
         inner_r = r * 0.3
         inner_rect = QRectF(cx - inner_r, cy - inner_r, 2 * inner_r, 2 * inner_r)
         painter.setPen(QPen(_C_TRACK, 1))
         painter.drawArc(inner_rect, 90 * 16, -180 * 16)
-
-        # Fase atual da animação de pulso (0.0 – 1.0)
-        pulse = 0.5 + 0.5 * math.sin(self.pulse_phase)
 
         # ── Marcações (ticks) ─────────────────────────────────────────────────
         for i in range(self.ticks + 1):
@@ -273,11 +223,7 @@ class WNotesSelector(QFrame):
             highlight = in_section and self.touch
 
             if highlight:
-                # Pulso cromático na seção ativa
-                r_val = int(_C_ACCENT.red()   * (0.8 + 0.2 * pulse))
-                g_val = int(_C_ACCENT.green() * (0.8 + 0.2 * pulse))
-                b_val = int(_C_ACCENT.blue()  * (0.8 + 0.2 * pulse))
-                pen = QPen(QColor(r_val, g_val, b_val), 2.5)
+                pen = QPen(_C_ACCENT, 2.5)
             elif i % 5 == 0:
                 pen = QPen(QColor(148, 163, 184), 1.5)  # marcação principal mais brilhante
             else:
@@ -291,7 +237,7 @@ class WNotesSelector(QFrame):
         f = painter.font()
         f.setPointSize(8)
         painter.setFont(f)
-        painter.drawText(int(cx + r + 16), int(cy + 4), "0°")
+        painter.drawText(int(cx + r + 30), int(cy + 4), "0°")
 
         # ── Divisores de seção ───────────────────────────────────────────────
         for i in range(self.sections + 1):
@@ -301,11 +247,7 @@ class WNotesSelector(QFrame):
 
             # Destaca os divisores da seção ativa com pulso
             if i in (selected_section, selected_section + 1) and self.touch:
-                alpha = int(160 + 60 * pulse)
-                r_val = int(_C_ACCENT.red()   * (0.7 + 0.3 * pulse))
-                g_val = int(_C_ACCENT.green() * (0.7 + 0.3 * pulse))
-                b_val = int(_C_ACCENT.blue()  * (0.7 + 0.3 * pulse))
-                pen = QPen(QColor(r_val, g_val, b_val, alpha), 2)
+                pen = QPen(_C_ACCENT, 2)
             else:
                 pen = QPen(_C_DIVIDER, 1.5)
 
