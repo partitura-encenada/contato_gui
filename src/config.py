@@ -24,12 +24,9 @@ def save_setup(window: QWidget, parent: QWidget | None = None) -> None:
         "midi_port_index": window.midi_output_combo.currentIndex(),
         "midi_channel":    int(window.channel_combo.currentText()),
     }
-    try:
-        with open(path, "w") as f:
-            json.dump(data, f, indent=2)
-        print("Configuração salva em", path)
-    except Exception as e:
-        print("Erro ao salvar configuração:", e)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+    print("Configuração salva em", path)
 
 
 def load_setup(window: QWidget, parent: QWidget | None = None) -> None:
@@ -40,18 +37,13 @@ def load_setup(window: QWidget, parent: QWidget | None = None) -> None:
     if not path:
         return
 
-    try:
-        with open(path, "r") as f:
-            data = json.load(f)
-    except Exception as e:
-        print("Erro ao abrir configuração:", e)
-        return
+    with open(path, "r") as f:
+        data = json.load(f)
 
-    # Aplica os valores carregados nos controles da janela principal
-    window.selector.setSections(data.get("sections", 6))
-    for combo, note in zip(window.selector.combos, data.get("notes", [])):
+    window.selector.setSections(data["sections"])
+    for combo, note in zip(window.selector.combos, data["notes"]):
         combo.setCurrentText(note)
-    window.selector.setInstrument(data.get("instrument", 0), None)
-    window.midi_output_combo.setCurrentIndex(int(data.get("midi_port_index", 0)))
-    window.channel_combo.setCurrentText(str(data.get("midi_channel", 1)))
+    window.selector.setInstrument(data["instrument"], None)
+    window.midi_output_combo.setCurrentIndex(data["midi_port_index"])
+    window.channel_combo.setCurrentText(str(data["midi_channel"]))
     print("Configuração carregada de", path)
