@@ -5,9 +5,6 @@ import sys
 import os
 import asyncio
 
-# Garante que o diretório src/ esteja no path para resolver pacotes irmãos
-sys.path.insert(0, os.path.dirname(__file__))
-
 from qasync import QApplication as QAsyncApplication, QEventLoop
 from app import main_async
 
