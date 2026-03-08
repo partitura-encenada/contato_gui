@@ -50,7 +50,7 @@ class SeletorCircular(QFrame):
 
         # Lista completa de notas disponíveis nos combos (C1–B5)
         self._all_notes = [
-            f"{note}{octave}"
+            f"{note} {octave}"
             for octave in range(1, 6)
             for note in NOTE_NAMES
         ]
