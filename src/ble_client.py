@@ -40,11 +40,6 @@ class BleConnection(QObject):
         super().__init__(parent)
         self._client: BleakClient | None = None
 
-    @property
-    def is_connected(self) -> bool:
-        """Retorna True se há um cliente BLE ativo e conectado."""
-        return self._client is not None and self._client.is_connected
-
     # ── Callbacks de notificação BLE ──────────────────────────────────────────
 
     def _on_status(self, _: BleakGATTCharacteristic, data: bytearray):
@@ -57,12 +52,12 @@ class BleConnection(QObject):
         raw = bytes(data)
         if len(raw) < 3:
             return
-        # Os últimos 3 bytes do pacote BLE MIDI contêm a mensagem MIDI propriamente dita
+        # Últimos 3 bytes do pacote BLE MIDI contêm a mensagem
         msg = list(raw[-3:])
         print("MIDI in:", msg)
         self.midi_received.emit(msg)
 
-    # ── Ciclo de vida da conexão ──────────────────────────────────────────────
+    # ── Loop da onexão ──────────────────────────────────────────────
 
     async def connect(self, device) -> None:
         """Conecta ao dispositivo, lê o estado inicial e mantém a conexão aberta."""
@@ -95,7 +90,7 @@ class BleConnection(QObject):
         for b in section_bytes:
             note   = NOTE_NAMES[b % 12]
             octave = max(1, min(5, (b // 12) - 1))
-            notes.append(f"{note}{octave}")
+            notes.append(f"{note} {octave}")
         state["notes"] = notes
 
         # Encontra o nível de AccelLevel mais próximo do valor salvo no hardware
@@ -115,32 +110,23 @@ class BleConnection(QObject):
 
     async def write_sections(self, notes_list: list) -> None:
         """Envia array de notas MIDI ao hardware para atualizar as seções do giroscópio."""
-        if not self.is_connected:
-            return
         midi_bytes = bytes([name_to_midi(n) for n in notes_list])
         await self._client.write_gatt_char(SECTIONS_CHAR_UUID, midi_bytes, response=True)
         print("Sections →", list(midi_bytes))
 
     async def write_accel(self, level: AccelLevel) -> None:
-        """Envia o limiar de sensibilidade do acelerômetro ao hardware (int16 little-endian)."""
-        if not self.is_connected:
-            return
+        """Envia o limiar de sensibilidade do acelerômetro ao hardware"""
         payload = level.value.to_bytes(2, "little", signed=True)
         await self._client.write_gatt_char(ACCEL_SENS_CHARACTERISTIC_UUID, payload, response=True)
         print(f"Accel → {level.name} ({level.value})")
 
     async def write_direction(self, idx: int) -> None:
         """Envia o sentido do mapeamento do giroscópio (0 = direita, 1 = esquerda)."""
-        if not self.is_connected:
-            return
         val = bytes([1 if idx == 1 else 0])
         await self._client.write_gatt_char(DIR_CHAR_UUID, val, response=True)
         print(f"Direção → {'Esquerda' if idx == 1 else 'Direita'}")
 
     async def calibrate(self) -> None:
         """Dispara o processo de calibração do MPU6050 no hardware."""
-        if not self.is_connected:
-            print("Nenhum cliente BLE conectado — não é possível calibrar.")
-            return
         await self._client.write_gatt_char(CALIBRATE_CHAR_UUID, bytes([0x01]), response=True)
         print("Calibração enviada.")

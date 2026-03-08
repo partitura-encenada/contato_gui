@@ -12,11 +12,11 @@ Aplicação desktop para controle gestual de instrumentos MIDI via Bluetooth Low
 - Seletor circular interativo de notas com visualização em tempo real da posição do giroscópio
 - Suporte a 1–8 seções de notas configuráveis individualmente
 - Seleção de instrumento via Program Change MIDI (16 instrumentos GM)
-- Configuração de sensibilidade do acelerômetro (Soft / Medium / Hard)
+- Configuração de sensibilidade do acelerômetro (Suave / Médio / Forte)
 - Direção do mapeamento do giroscópio configurável (Esquerda / Direita)
 - Seleção de porta MIDI de saída e canal (1–16)
 - Salvar e carregar configurações em arquivo JSON
-- Tema escuro com interface customizada em PyQt6
+- Interface em PyQt6 com tema claro
 
 ## Requisitos
 
@@ -42,26 +42,20 @@ python -m src
 contato_gui/
 ├── src/
 │   ├── __main__.py          # Ponto de entrada
+│   ├── app.py               # Inicialização da aplicação
+│   ├── main_window.py       # Janela principal
+│   ├── notes_selector.py    # Widget seletor circular de notas
+│   ├── combo_box.py         # ComboBox customizado
+│   ├── ble_client.py        # Gerenciamento da conexão BLE
+│   ├── ble_scanner.py       # Descoberta de dispositivos BLE
+│   ├── midi_manager.py      # Saída MIDI
+│   ├── about_dialog.py      # Diálogo Sobre
+│   ├── instrument_dialog.py # Seletor de instrumento
+│   ├── splash_screen.py     # Tela de carregamento
 │   ├── constants.py         # UUIDs BLE, enums, constantes musicais
 │   ├── config.py            # Salvar/carregar configuração
-│   ├── ble/
-│   │   ├── scanner.py       # Descoberta de dispositivos BLE
-│   │   └── client.py        # Gerenciamento da conexão BLE
-│   ├── midi/
-│   │   └── manager.py       # Saída MIDI
-│   ├── ui/
-│   │   ├── app.py           # Inicialização da aplicação
-│   │   ├── main_window.py   # Janela principal
-│   │   ├── theme.py         # Tema escuro
-│   │   ├── splash.py        # Tela de carregamento
-│   │   ├── dialogs/
-│   │   │   ├── about.py     # Diálogo Sobre
-│   │   │   └── instrument.py# Seletor de instrumento
-│   │   └── widgets/
-│   │       ├── notes_selector.py  # Widget seletor circular
-│   │       └── combo_box.py       # ComboBox customizado
 │   └── assets/
-│       └── logos/           # Logos dos patrocinadores (adicionar manualmente)
+│       └── logos/           # Logos dos patrocinadores
 │           ├── parque_tec.png
 │           ├── nce_ufrj.png
 │           └── inova_ufrj.png
@@ -90,4 +84,3 @@ Este projeto é desenvolvido com o apoio de:
   </tr>
 </table>
 
-> **Nota:** Adicione os arquivos de logo em `src/assets/logos/` para que sejam exibidos aqui e no diálogo Sobre da aplicação.

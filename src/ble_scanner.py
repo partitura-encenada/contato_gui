@@ -14,7 +14,6 @@ from PyQt6.QtGui import QIcon
 from bleak import BleakScanner
 
 from constants import BLE_MIDI_SERVICE_UUID
-from theme import BG, SURFACE, BORDER, ACCENT, ACCENT2, TEXT, MUTED
 
 
 async def scan_devices() -> list:
@@ -36,7 +35,6 @@ def pick_device(devices: list, parent=None):
     dlg.setWindowIcon(QIcon(icon_path))
     dlg.setModal(True)
     dlg.setMinimumWidth(360)
-    dlg.setStyleSheet(f"QDialog {{ background: {BG}; }}")
 
     layout = QVBoxLayout(dlg)
     layout.setContentsMargins(20, 18, 20, 18)
@@ -44,11 +42,7 @@ def pick_device(devices: list, parent=None):
 
     # Cabeçalho do diálogo
     heading = QLabel("Dispositivos encontrados")
-    heading.setStyleSheet(
-        f"color: {TEXT}; font-size: 14px; font-weight: bold; background: transparent;"
-    )
     sub = QLabel("Selecione o dispositivo 'Contato' para conectar:")
-    sub.setStyleSheet(f"color: {MUTED}; font-size: 12px; background: transparent;")
     layout.addWidget(heading)
     layout.addWidget(sub)
 
@@ -67,11 +61,7 @@ def pick_device(devices: list, parent=None):
     hl.setSpacing(8)
     btn_cancel = QPushButton("Cancelar")
     btn_ok     = QPushButton("Conectar")
-    btn_ok.setStyleSheet(
-        f"QPushButton {{ background: {ACCENT2}; color: #fff; border: 1px solid {ACCENT};"
-        f"border-radius: 6px; padding: 5px 18px; font-weight: bold; }}"
-        f"QPushButton:hover {{ background: {ACCENT}; }}"
-    )
+    btn_ok.setDefault(True)
     hl.addStretch()
     hl.addWidget(btn_cancel)
     hl.addWidget(btn_ok)

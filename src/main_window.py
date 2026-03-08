@@ -7,65 +7,22 @@ de notas e o painel de controles (notas, direção, sensibilidade, MIDI).
 import asyncio
 import os
 
-from PyQt6.QtCore import Qt, QPointF, QRectF, QSize
+from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtWidgets import (
-    QWidget, QFrame, QPushButton, QComboBox,
+    QApplication, QWidget, QFrame, QPushButton, QComboBox,
     QLabel, QSpinBox, QVBoxLayout, QHBoxLayout,
-    QGridLayout, QSizePolicy,
+    QGridLayout, QSizePolicy, QStyle,
 )
-from PyQt6.QtGui import QIcon, QPixmap, QPainter, QPen, QColor
+from PyQt6.QtGui import QIcon
 from qasync import asyncSlot
 
 from constants import AccelLevel, name_to_midi
 from config import save_setup, load_setup
 from ble_client import BleConnection
 from midi_manager import MidiManager
-from notes_selector import WNotesSelector
+from notes_selector import SeletorCircular
 from about_dialog import AboutDialog
-from theme import SURFACE, RAISED, BORDER, ACCENT, ACCENT2, TEXT, MUTED
 
-
-def _btn_icon(kind: str, size: int = 13) -> QIcon:
-    """Desenha um ícone de linha mínimo para os botões da barra superior."""
-    color = QColor("#c8d4de")
-    pix = QPixmap(size, size)
-    pix.fill(Qt.GlobalColor.transparent)
-    p = QPainter(pix)
-    p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    pen = QPen(color, 1.3)
-    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-    p.setPen(pen)
-    s = float(size)
-
-    if kind == "save":
-        # Seta para baixo com linha de base (salvar em disco)
-        p.drawLine(QPointF(s / 2, 1.5),       QPointF(s / 2, s - 3.5))
-        p.drawLine(QPointF(s / 2 - 2.5, s - 6), QPointF(s / 2, s - 3.5))
-        p.drawLine(QPointF(s / 2 + 2.5, s - 6), QPointF(s / 2, s - 3.5))
-        p.drawLine(QPointF(2.0, s - 1.5),     QPointF(s - 2.0, s - 1.5))
-
-    elif kind == "open":
-        # Forma simplificada de pasta
-        p.drawLine(QPointF(1.5, 4.5),          QPointF(1.5, s - 1.5))
-        p.drawLine(QPointF(1.5, s - 1.5),      QPointF(s - 1.5, s - 1.5))
-        p.drawLine(QPointF(s - 1.5, s - 1.5),  QPointF(s - 1.5, 4.5))
-        p.drawLine(QPointF(s - 1.5, 4.5),      QPointF(s / 2 + 1.0, 4.5))
-        p.drawLine(QPointF(s / 2 + 1.0, 4.5),  QPointF(s / 2 - 0.5, 2.5))
-        p.drawLine(QPointF(s / 2 - 0.5, 2.5),  QPointF(1.5, 2.5))
-        p.drawLine(QPointF(1.5, 2.5),           QPointF(1.5, 4.5))
-
-    elif kind == "info":
-        # Círculo com "i"
-        p.drawEllipse(QRectF(1.5, 1.5, s - 3.0, s - 3.0))
-        fat = QPen(color, 1.8)
-        fat.setCapStyle(Qt.PenCapStyle.RoundCap)
-        p.setPen(fat)
-        p.drawPoint(QPointF(s / 2, s * 0.33))
-        p.drawLine(QPointF(s / 2, s * 0.47), QPointF(s / 2, s * 0.73))
-
-    p.end()
-    return QIcon(pix)
 
 
 class MainWindow(QWidget):
@@ -77,24 +34,26 @@ class MainWindow(QWidget):
         icon_path = os.path.join(os.path.dirname(__file__), "icon.ico")
         self.setWindowIcon(QIcon(icon_path))
         self.setWindowTitle("Contato GUI")
+        self.setFixedWidth(640)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self._build_topbar())
 
-        self.selector = WNotesSelector(sections=6, ticks=60)
+        self.selector = SeletorCircular(sections=6, ticks=60)
         self.selector.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout.addWidget(self.selector, stretch=1)
 
-        # Conecta sinais do seletor antes de construir os controles
-        # (setValue em notas_spin dispara setSections)
         self.selector.signalInstrumentChanged.connect(self._on_instrument_changed)
-        self.selector.signalNotes.connect(self._on_notes_changed)
         self.selector.signalNotePreview.connect(self._on_note_preview)
 
         layout.addWidget(self._build_controls_card())
         layout.addWidget(self._build_footer())
+
+        # signalNotes conectado após _build_controls_card para que o setValue
+        # inicial do notas_spin não dispare uma escrita BLE antes da conexão
+        self.selector.signalNotes.connect(self._on_notes_changed)
 
         # Conecta sinais BLE à interface
         self.ble.status_received.connect(self._on_ble_status)
@@ -117,9 +76,7 @@ class MainWindow(QWidget):
         """Constrói a barra superior com botões Salvar, Abrir e Sobre."""
         frame = QFrame()
         frame.setFixedHeight(40)
-        frame.setStyleSheet(
-            f"QFrame {{ background-color: {SURFACE}; border-bottom: 1px solid {BORDER}; }}"
-        )
+        frame.setStyleSheet("QFrame { border-bottom: 1px solid #555; }")
 
         topbar = QHBoxLayout(frame)
         topbar.setContentsMargins(10, 0, 10, 0)
@@ -129,11 +86,12 @@ class MainWindow(QWidget):
         load_btn  = QPushButton(" Abrir")
         about_btn = QPushButton(" Sobre")
 
-        save_btn.setIcon(_btn_icon("save"))
-        load_btn.setIcon(_btn_icon("open"))
-        about_btn.setIcon(_btn_icon("info"))
+        style = QApplication.style()
+        save_btn.setIcon(style.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
+        load_btn.setIcon(style.standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton))
+        about_btn.setIcon(style.standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation))
 
-        icon_sz = QSize(13, 13)
+        icon_sz = QSize(16, 16)
         for b in (save_btn, load_btn, about_btn):
             b.setIconSize(icon_sz)
             b.setFixedHeight(24)
@@ -153,13 +111,10 @@ class MainWindow(QWidget):
         """Constrói a barra de status inferior com mensagens do estado do programa."""
         frame = QFrame()
         frame.setFixedHeight(22)
-        frame.setStyleSheet(
-            f"QFrame {{ background-color: {SURFACE}; border-top: 1px solid {BORDER}; }}"
-        )
+        frame.setStyleSheet("QFrame { background-color: #dde8ee; }")
         row = QHBoxLayout(frame)
         row.setContentsMargins(10, 0, 10, 0)
         self._status_label = QLabel("—")
-        self._status_label.setStyleSheet(f"color: {MUTED}; font-size: 11px;")
         row.addWidget(self._status_label)
         row.addStretch()
         return frame
@@ -168,18 +123,13 @@ class MainWindow(QWidget):
         """Constrói o painel inferior com controles de notas, direção, sensibilidade e MIDI."""
         card = QFrame()
         card.setObjectName("ControlsCard")
-        card.setStyleSheet(
-            f"#ControlsCard {{ background-color: {SURFACE}; border-top: 1px solid {BORDER}; }}"
-        )
 
         outer = QVBoxLayout(card)
         outer.setContentsMargins(20, 14, 20, 16)
         outer.setSpacing(0)
 
         def muted(text: str) -> QLabel:
-            """Cria um rótulo com cor secundária para identificar controles."""
             lbl = QLabel(text)
-            lbl.setStyleSheet(f"color: {MUTED}; font-size: 12px;")
             return lbl
 
         grid = QGridLayout()
