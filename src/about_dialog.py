@@ -38,7 +38,7 @@ class AboutDialog(QDialog):
         layout.addSpacing(10)
 
         # ── Logo do aplicativo ────────────────────────────────────────────────
-        splash_path = os.path.join(os.path.dirname(__file__), "splash.png")
+        splash_path = os.path.join(os.path.dirname(__file__), "assets", "splash.png")
         pix = QPixmap(splash_path).scaled(
             60, 60,
             Qt.AspectRatioMode.KeepAspectRatio,
