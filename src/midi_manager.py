@@ -13,9 +13,8 @@ class MidiManager:
         self._out   = rtmidi.MidiOut()
         self._ports: list[str] = self._out.get_ports()
 
-        idx = max(0, min(port_index, len(self._ports) - 1))
-        self._out.open_port(idx)
-        print(f"MIDI → [{idx}] {self._ports[idx]}")
+        self._out.open_port(port_index)
+        print(f"MIDI → [{port_index}] {self._ports[port_index]}")
 
     @property
     def ports(self) -> list[str]:

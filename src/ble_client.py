@@ -26,7 +26,7 @@ from constants import (
 
 
 class BleConnection(QObject):
-    status_received = pyqtSignal(int, bool)   # (gyro_x, touch)
+    status_received = pyqtSignal(int, bool, int)   # (gyro_x, touch, state)
     midi_received   = pyqtSignal(list)         # mensagem MIDI bruta de 3 bytes
     initial_state   = pyqtSignal(dict)         # estado inicial lido do hardware
     connected       = pyqtSignal()
@@ -39,8 +39,8 @@ class BleConnection(QObject):
     # ── Callbacks de notificação BLE ──────────────────────────────────────────
 
     def _on_status(self, _: BleakGATTCharacteristic, data: bytearray):
-        gyro_x, _, touch = struct.unpack("<hhB", data)
-        self.status_received.emit(gyro_x, bool(touch))
+        state, touch, gyro_x, accel_x = struct.unpack("<BBhh", data)
+        self.status_received.emit(gyro_x, bool(touch), state)
 
     def _on_midi(self, _: BleakGATTCharacteristic, data: bytearray):
         raw = bytes(data)
@@ -53,23 +53,19 @@ class BleConnection(QObject):
     async def connect(self, device) -> None:
         """Conecta ao dispositivo e reconecta automaticamente após desconexão."""
         while True:
-            try:
-                async with BleakClient(device) as client:
-                    self._client = client
-                    print(f"Conectado a {device.name} / {device.address}")
-                    self.connected.emit()
+            async with BleakClient(device) as client:
+                self._client = client
+                print(f"Conectado a {device.name} / {device.address}")
+                self.connected.emit()
 
-                    state = await self._read_initial_state(client)
-                    self.initial_state.emit(state)
+                state = await self._read_initial_state(client)
+                self.initial_state.emit(state)
 
-                    await client.start_notify(BLE_MIDI_CHAR_UUID, self._on_midi)
-                    await client.start_notify(STATUS_CHARACTERISTIC_UUID, self._on_status)
+                await client.start_notify(BLE_MIDI_CHAR_UUID, self._on_midi)
+                await client.start_notify(STATUS_CHARACTERISTIC_UUID, self._on_status)
 
-                    while client.is_connected:
-                        await asyncio.sleep(0.5)
-
-            except Exception:
-                pass  # dispositivo fora de alcance — aguarda e tenta novamente
+                while client.is_connected:
+                    await asyncio.sleep(0.5)
 
             self._client = None
             self.disconnected.emit()
@@ -88,13 +84,11 @@ class BleConnection(QObject):
         state["notes"] = notes
 
         sens_bytes = await client.read_gatt_char(ACCEL_SENS_CHARACTERISTIC_UUID)
-        if sens_bytes and len(sens_bytes) >= 4:
-            raw = int.from_bytes(sens_bytes[:4], "little", signed=True)
-            state["accel_level"] = min(AccelLevel, key=lambda lvl: abs(lvl.value - raw))
+        raw = int.from_bytes(sens_bytes[:4], "little", signed=True)
+        state["accel_level"] = min(AccelLevel, key=lambda lvl: abs(lvl.value - raw))
 
         dir_bytes = await client.read_gatt_char(DIR_CHAR_UUID)
-        if dir_bytes:
-            state["direction"] = 1 if dir_bytes[0] != 0 else 0
+        state["direction"] = 1 if dir_bytes[0] != 0 else 0
 
         return state
 

@@ -15,7 +15,7 @@ class InstrumentSelectorDialog(QDialog):
     def __init__(self, instruments: list[tuple[str, str]], current_index: int, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Selecionar Instrumento")
-        icon_path = os.path.join(os.path.dirname(__file__), "icon.ico")
+        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icon.ico")
         self.setWindowIcon(QIcon(icon_path))
         self.setModal(True)
 
@@ -27,10 +27,5 @@ class InstrumentSelectorDialog(QDialog):
         for i, (icon, name) in enumerate(instruments):
             btn = QPushButton(f"{icon}\n{name}")
             btn.setFixedSize(110, 68)
-            btn.clicked.connect(lambda _, idx=i: self._select(idx))
+            btn.clicked.connect(lambda _, idx=i: (self.instrumentSelected.emit(idx), self.accept()))
             grid.addWidget(btn, i // 4, i % 4)
-
-    def _select(self, idx: int) -> None:
-        """Emite o índice selecionado e fecha o diálogo."""
-        self.instrumentSelected.emit(idx)
-        self.accept()
