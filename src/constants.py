@@ -50,5 +50,5 @@ def name_to_midi(name: str) -> int:
     for note in sorted(NOTE_NAMES, key=len, reverse=True):
         if name.startswith(note):
             octave = int(name[len(note):].strip())
-            return max(0, min(127, (octave + 1) * 12 + NOTE_NAMES.index(note)))
+            return (octave + 1) * 12 + NOTE_NAMES.index(note)
     return 0

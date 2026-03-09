@@ -9,7 +9,7 @@ from PyQt6.QtGui import QPixmap
 
 class SplashScreen(QSplashScreen):
     def __init__(self):
-        image_path = os.path.join(os.path.dirname(__file__), "splash.png")
+        image_path = os.path.join(os.path.dirname(__file__), "assets", "splash.png")
         pix = QPixmap(image_path).scaled(
             500, 500,
             Qt.AspectRatioMode.KeepAspectRatio,
