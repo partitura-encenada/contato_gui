@@ -62,12 +62,7 @@ class SeletorCircular(QFrame):
         self.center_button.setStyleSheet("QPushButton { border-radius: 45px; font-size: 32px; }")
         self.center_button.clicked.connect(self._show_instrument_selector)
 
-        self._hand_icon = self._make_hand_icon()
-
-    # ── Auxiliares ────────────────────────────────────────────────────────────
-
-    @staticmethod
-    def _make_hand_icon() -> QPixmap:
+        # Arrow-shaped hand icon drawn at the active gyro tick
         pix = QPixmap(22, 22)
         pix.fill(Qt.GlobalColor.transparent)
         p = QPainter(pix)
@@ -80,28 +75,7 @@ class SeletorCircular(QFrame):
         p.setBrush(_C_ACCENT)
         p.drawPath(path)
         p.end()
-        return pix
-
-    def _reposition_widgets(self) -> None:
-        """Reposiciona o botão central e os combos com base no tamanho atual do widget."""
-        w, h = self.width(), self.height()
-        if w == 0 or h == 0:
-            return
-        cx, cy = w / 2 - self.offset, h / 2
-        r = min((h / 2) - self.margin, (w - cx) - self.margin)
-        section_angle = math.pi / max(1, self.sections)
-
-        bw, bh = self.center_button.width(), self.center_button.height()
-        self.center_button.move(int(cx - bw / 2), int(cy - bh / 2))
-
-        for i, combo in enumerate(self.combos):
-            mid = -math.pi / 2 + section_angle * (i + 0.5)
-            rr  = r * 0.6
-            x   = cx + rr * math.cos(mid) - combo.width()  / 2
-            y   = cy + rr * math.sin(mid) - combo.height() / 2
-            combo.move(int(x), int(y))
-
-    # ── API pública ───────────────────────────────────────────────────────────
+        self._hand_icon = pix
 
     def setSections(self, count: int) -> None:
         count = int(count)
@@ -133,7 +107,22 @@ class SeletorCircular(QFrame):
             self.combos.append(combo)
 
         self.signalNotes.emit([c.currentText() for c in self.combos])
-        self._reposition_widgets()
+
+        w, h = self.width(), self.height()
+        cx, cy = w / 2 - self.offset, h / 2
+        r = min((h / 2) - self.margin, (w - cx) - self.margin)
+        section_angle = math.pi / max(1, self.sections)
+
+        bw, bh = self.center_button.width(), self.center_button.height()
+        self.center_button.move(int(cx - bw / 2), int(cy - bh / 2))
+
+        for i, combo in enumerate(self.combos):
+            mid = -math.pi / 2 + section_angle * (i + 0.5)
+            rr  = r * 0.6
+            x   = cx + rr * math.cos(mid) - combo.width()  / 2
+            y   = cy + rr * math.sin(mid) - combo.height() / 2
+            combo.move(int(x), int(y))
+
         self.update()
 
     def setInstrument(self, index: int, dialog=None) -> None:
@@ -152,12 +141,6 @@ class SeletorCircular(QFrame):
         )
         dlg.instrumentSelected.connect(lambda idx: self.setInstrument(idx, None))
         dlg.exec()
-
-    # ── Eventos ───────────────────────────────────────────────────────────────
-
-    def resizeEvent(self, e) -> None:
-        super().resizeEvent(e)
-        self._reposition_widgets()
 
     # ── Pintura ───────────────────────────────────────────────────────────────
 
