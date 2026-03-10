@@ -1,7 +1,7 @@
 """Widget principal de seleção de notas em arco semicircular.
 
 Exibe um arco de 180° com marcações (ticks), divisores de seção e um ícone
-de mão que acompanha a posição do giroscópio em tempo real. Cada seção possui
+de seta que acompanha a posição do giroscópio em tempo real. Cada seção possui
 um ComboBox de nota posicionado ao longo do arco. A seção ativa pulsa quando
 o sensor de toque está pressionado.
 """
@@ -62,7 +62,7 @@ class SeletorCircular(QFrame):
         self.center_button.setStyleSheet("QPushButton { border-radius: 45px; font-size: 32px; }")
         self.center_button.clicked.connect(self._show_instrument_selector)
 
-        # Arrow-shaped hand icon drawn at the active gyro tick
+        # Ícone de seta desenhado na marcação ativa do giroscópio
         pix = QPixmap(22, 22)
         pix.fill(Qt.GlobalColor.transparent)
         p = QPainter(pix)
@@ -133,7 +133,7 @@ class SeletorCircular(QFrame):
         if dialog:
             dialog.accept()
 
-    # ── Seletor de instrumento ────────────────────────────────────────────────
+    # -- Seletor de instrumento
 
     def _show_instrument_selector(self) -> None:
         dlg = InstrumentSelectorDialog(
@@ -142,7 +142,7 @@ class SeletorCircular(QFrame):
         dlg.instrumentSelected.connect(lambda idx: self.setInstrument(idx, None))
         dlg.exec()
 
-    # ── Pintura ───────────────────────────────────────────────────────────────
+    # -- Pintura
 
     def paintEvent(self, _):
         painter = QPainter(self)
@@ -161,7 +161,7 @@ class SeletorCircular(QFrame):
         )
         start_ang, end_ang = -math.pi / 2, math.pi / 2
 
-        # ── Arco externo ────────────────────────────────────────────
+        # -- Arco externo
         arc_rect = QRectF(cx - r, cy - r, 2 * r, 2 * r)
         painter.setPen(QPen(_C_TRACK, 1.5))
         painter.drawArc(arc_rect, 90 * 16, -180 * 16)
@@ -171,7 +171,7 @@ class SeletorCircular(QFrame):
         painter.setPen(QPen(_C_TRACK, 1))
         painter.drawArc(inner_rect, 90 * 16, -180 * 16)
 
-        # ── Marcações (ticks) ─────────────────────────────────────────────────
+        # -- Marcações (ticks)
         for i in range(self.ticks + 1):
             t  = start_ang + (end_ang - start_ang) * (i / self.ticks)
             ox, oy = cx + r * math.cos(t), cy + r * math.sin(t)
@@ -208,14 +208,14 @@ class SeletorCircular(QFrame):
             painter.setPen(pen)
             painter.drawLine(QPointF(ix, iy), QPointF(ox, oy))
 
-        # ── Rótulo "0°" ───────────────────────────────────────────────────────
+        # -- Rótulo "0°"
         painter.setPen(QColor(100, 116, 139, 180))
         f = painter.font()
         f.setPointSize(8)
         painter.setFont(f)
         painter.drawText(int(cx + r + 30), int(cy + 4), "0°")
 
-        # ── Divisores de seção ───────────────────────────────────────────────
+        # -- Divisores de seção
         for i in range(self.sections + 1):
             t  = start_ang + section_angle * i
             x1, y1 = cx + r * 0.3 * math.cos(t), cy + r * 0.3 * math.sin(t)
