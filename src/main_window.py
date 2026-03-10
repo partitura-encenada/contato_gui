@@ -4,7 +4,7 @@ import os
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QFrame, QPushButton, QComboBox,
-    QLabel, QSpinBox, QVBoxLayout, QHBoxLayout,
+    QLabel, QSpinBox, QCheckBox, QVBoxLayout, QHBoxLayout,
     QGridLayout, QSizePolicy, QStyle,
 )
 from PyQt6.QtGui import QIcon, QPainter, QColor
@@ -160,8 +160,13 @@ class MainWindow(QWidget):
         midi_container = QWidget()
         midi_container.setLayout(midi_row)
 
-        grid.addWidget(muted("Saída MIDI"), 3, 0)
-        grid.addWidget(midi_container, 3, 1)
+        self.tilt_check = QCheckBox()
+        self.tilt_check.stateChanged.connect(self._on_tilt_changed)
+        grid.addWidget(muted("Pitch bend"), 3, 0)
+        grid.addWidget(self.tilt_check, 3, 1, Qt.AlignmentFlag.AlignRight)
+
+        grid.addWidget(muted("Saída MIDI"), 4, 0)
+        grid.addWidget(midi_container, 4, 1)
         outer.addLayout(grid)
         layout.addWidget(card)
 
@@ -175,7 +180,7 @@ class MainWindow(QWidget):
         row.addStretch()
         layout.addWidget(footer)
 
-        # conectado após a construção dos controles para evitar escrita BLE durante o init
+        # Conectado após a construção dos controles para evitar escrita BLE durante o init
         self.selector.signalNotes.connect(self._on_notes_changed)
 
         self.overlay = LoadingOverlay(self)
@@ -198,7 +203,7 @@ class MainWindow(QWidget):
     def _set_status(self, msg: str) -> None:
         self._status_label.setText(msg)
 
-    def _on_ble_status(self, gyro: int, touch: bool, state: int) -> None:
+    def _on_ble_status(self, gyro: int, touch: bool, state: int, tilt: int) -> None:
         if state == 1:
             if not self._calibrating:
                 self._calibrating = True
@@ -220,6 +225,7 @@ class MainWindow(QWidget):
         self._last_touch    = touch
         self.selector.gyro  = gyro
         self.selector.touch = touch
+        self.selector.tilt  = tilt
         self.selector.update()
 
     def _on_ble_disconnected(self) -> None:
@@ -232,6 +238,7 @@ class MainWindow(QWidget):
         self.notas_spin.setEnabled(enabled)
         self.dir_combo.setEnabled(enabled)
         self.accel_combo.setEnabled(enabled)
+        self.tilt_check.setEnabled(enabled)
         self.midi_output_combo.setEnabled(enabled)
         self.channel_combo.setEnabled(enabled)
         self.cal_btn.setEnabled(enabled)
@@ -265,6 +272,12 @@ class MainWindow(QWidget):
             self.dir_combo.setCurrentIndex(state["direction"])
             self.dir_combo.blockSignals(False)
 
+        if "tilt_enabled" in state:
+            self.tilt_check.blockSignals(True)
+            self.tilt_check.setChecked(state["tilt_enabled"])
+            self.tilt_check.blockSignals(False)
+            self.selector.tilt_enabled = state["tilt_enabled"]
+
         self._set_controls_enabled(True)
         self.overlay.hide_overlay()
 
@@ -287,6 +300,12 @@ class MainWindow(QWidget):
     async def _on_accel_changed(self, idx: int) -> None:
         level = self.accel_combo.itemData(idx)
         await self.ble.write_accel(level)
+
+    @asyncSlot(int)
+    async def _on_tilt_changed(self, state: int) -> None:
+        enabled = bool(state)
+        self.selector.tilt_enabled = enabled
+        await self.ble.write_tilt_enabled(enabled)
 
     @asyncSlot(int)
     async def _on_direction_changed(self, idx: int) -> None:

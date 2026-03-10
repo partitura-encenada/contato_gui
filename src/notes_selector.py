@@ -34,8 +34,10 @@ class SeletorCircular(QFrame):
         self.tick_short = 7
         self.combos: list[ToggleEnterComboBox] = []
 
-        self.gyro  = 0
-        self.touch = False
+        self.gyro         = 0
+        self.touch        = False
+        self.tilt         = 0
+        self.tilt_enabled = False
 
         self._all_notes = [
             f"{note} {octave}"
@@ -206,3 +208,18 @@ class SeletorCircular(QFrame):
 
             painter.setPen(pen)
             painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+
+        if self.tilt_enabled:
+            gyro_angle   = self.gyro * math.pi / -180
+            tilt_offset  = -(self.tilt / 90.0) * (30 * math.pi / 180)
+            ghost_angle  = max(-math.pi / 2, min(math.pi / 2, gyro_angle + tilt_offset))
+            ghost_rotated = self._hand_icon.transformed(
+                QTransform().rotate(math.degrees(ghost_angle)),
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            icon_r = r + 12
+            px = cx + icon_r * math.cos(ghost_angle) - ghost_rotated.width()  / 2
+            py = cy + icon_r * math.sin(ghost_angle) - ghost_rotated.height() / 2
+            painter.setOpacity(0.3)
+            painter.drawPixmap(int(px), int(py), ghost_rotated)
+            painter.setOpacity(1.0)

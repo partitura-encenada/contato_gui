@@ -26,6 +26,8 @@ async def main_async(app) -> None:
         QSpinBox    { background-color: #f5fbff; border: 1px solid #7dbfe8; padding: 4px; }
         QListWidget { background-color: #f5fbff; border: 1px solid #7dbfe8; border-radius: 8px; outline: 0; }
         QListWidget::item:selected { background-color: #7dbfe8; color: #1a3a4a; outline: 0; }
+        QCheckBox::indicator { width: 14px; height: 14px; border: 1px solid #7dbfe8; background-color: #f5fbff; }
+        QCheckBox::indicator:checked { background-color: #7dbfe8; }
     """)
 
     app_close_event = asyncio.Event()
