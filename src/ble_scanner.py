@@ -1,5 +1,3 @@
-# Varredura de dispositivos BLE filtrada pelo serviço MIDI.
-
 from bleak import BleakScanner
 from constants import BLE_MIDI_SERVICE_UUID
 
