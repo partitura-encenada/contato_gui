@@ -36,6 +36,17 @@ pip install -r requirements.txt
 python -m src
 ```
 
+## Build (executável)
+
+Requer [PyInstaller](https://pyinstaller.org):
+
+```bash
+pip install pyinstaller
+pyinstaller --noconfirm --windowed --onefile --icon=src/assets/icon.ico --name=Contato --add-data "src/assets;assets" src/__main__.py
+```
+
+O executável é gerado em `dist/Contato.exe`. Os artefatos de build (`build/`, `dist/`, `*.spec`) são ignorados pelo git.
+
 ## Estrutura do Projeto
 
 ```

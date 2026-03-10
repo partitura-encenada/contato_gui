@@ -1,2 +1,5 @@
 .venv
 CLAUDE.md
+build/
+dist/
+*.spec

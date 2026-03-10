@@ -10,6 +10,15 @@ pip install -r requirements.txt
 python -m src
 ```
 
+## Building an Executable
+
+```bash
+pip install pyinstaller
+pyinstaller --noconfirm --windowed --onefile --icon=src/assets/icon.ico --name=Contato --add-data "src/assets;assets" src/__main__.py
+```
+
+Output: `dist/Contato.exe`. Build artifacts are gitignored (`build/`, `dist/`, `*.spec`).
+
 There are no automated tests in this project.
 
 ## Client / Server
