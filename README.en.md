@@ -36,6 +36,17 @@ pip install -r requirements.txt
 python -m src
 ```
 
+## Build (executable)
+
+Requires [PyInstaller](https://pyinstaller.org):
+
+```bash
+pip install pyinstaller
+pyinstaller --noconfirm --windowed --onefile --icon=src/assets/icon.ico --name=Contato --add-data "src/assets;assets" src/__main__.py
+```
+
+The executable is generated at `dist/Contato.exe`. Build artifacts (`build/`, `dist/`, `*.spec`) are gitignored.
+
 ## Project Structure
 
 ```
