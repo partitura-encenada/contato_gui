@@ -1,0 +1,16 @@
+{
+  "sections": 4,
+  "instrument": 0,
+  "notes": [
+    "Mi 4",
+    "Lá 4",
+    "Dó 4",
+    "Mi 3"
+  ],
+  "midi_port_index": 0,
+  "midi_channel": 8,
+  "legato_enabled": false,
+  "tilt_enabled": false,
+  "direction": 0,
+  "accel_level": "Médio"
+}

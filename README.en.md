@@ -1,22 +1,24 @@
 # Contato GUI
+[![pt-br](https://img.shields.io/badge/lang-pt--br-green.svg)](README.md)
 
-Desktop application for gestural MIDI instrument control via Bluetooth Low Energy.
+Desktop application for gesture-based MIDI instrument control over Bluetooth Low Energy.
 
 ## About
 
-**Contato GUI** is a BLE → MIDI bridge developed as a university research project by the GruPPEn group (UFRJ), with support from UFRJ's Technology Park. It connects the Contato hardware to any MIDI-compatible synthesizer or DAW. The device uses a gyroscope and capacitive touch sensor to select and trigger notes in real time with low latency.
+**Contato GUI** is a graphical interface developed for university research by the Partitura Encenada Research Group (GruPPEn), with support from the UFRJ Technological Park. It connects the Contato hardware to any MIDI-compatible synthesizer or DAW. The device uses a gyroscope and a capacitive touch sensor to select and trigger notes in real time.
 
 ## Features
 
 - Automatic BLE connection to the Contato device
-- Interactive circular note selector with real-time gyroscope position visualization
+- Interactive circular note selector with real-time gyroscope position display
 - Support for 1–8 individually configurable note sections
 - Instrument selection via MIDI Program Change (16 GM instruments)
-- Accelerometer sensitivity configuration (Soft / Medium / Hard)
+- Accelerometer sensitivity setting (Soft / Medium / Strong)
 - Configurable gyroscope mapping direction (Left / Right)
+- Pitch bend via forearm tilt, with a ±10° dead zone
+- Legato mode: the note holds on its own until you trigger another one or hit the percussion
 - MIDI output port and channel selection (1–16)
-- Save and load session configurations as JSON files
-- Light theme PyQt6 interface
+- Save and load setups as JSON files
 
 ## Requirements
 
@@ -45,43 +47,42 @@ pip install pyinstaller
 pyinstaller --noconfirm --windowed --onefile --icon=src/assets/icon.ico --name=Contato --add-data "src/assets;assets" src/__main__.py
 ```
 
-The executable is generated at `dist/Contato.exe`. Build artifacts (`build/`, `dist/`, `*.spec`) are gitignored.
+Output: `dist/Contato.exe`.
 
 ## Project Structure
 
 ```
 contato_gui/
+├── repertorio/              # Ready-to-use setups
 ├── src/
 │   ├── __main__.py          # Entry point
-│   ├── app.py               # Application startup
+│   ├── app.py               # Application init
 │   ├── main_window.py       # Main window
 │   ├── notes_selector.py    # Circular note selector widget
-│   ├── combo_box.py         # Custom combo box
-│   ├── instrument_dialog.py # Instrument selector dialog
+│   ├── combo_box.py         # Custom ComboBox
+│   ├── instrument_dialog.py # Instrument picker
 │   ├── about_dialog.py      # About dialog
-│   ├── splash_screen.py     # Splash screen
-│   ├── ble_client.py        # BLE connection management
+│   ├── splash_screen.py     # Loading screen
+│   ├── ble_client.py        # BLE connection manager
 │   ├── ble_scanner.py       # BLE device discovery
 │   ├── midi_manager.py      # MIDI output
-│   ├── constants.py         # BLE UUIDs, enums, music constants
-│   ├── config.py            # Save/load configuration
+│   ├── constants.py         # BLE UUIDs, enums, musical constants
+│   ├── config.py            # Save/load setup
 │   └── assets/
-│       ├── splash.png       # GruPPEn logo (splash screen)
+│       ├── splash.png       # GruPPEn logo (loading screen)
 │       ├── icon.ico
 │       └── logos/
 │           ├── parque_tecnologico.png
 │           ├── ufrj.png
 │           ├── inova_ufrj.png
 │           └── coppetec.png
-└── references/
-    └── repertorio/          # Musical piece reference data
 ```
 
-## Support and Sponsorship
+## Credits
 
 <table>
   <tr>
-    <td align="center" colspan="1"><b>Sponsorship</b></td>
+    <td align="center" colspan="1"><b>Sponsor</b></td>
     <td align="center" colspan="2"><b>Institutional Affiliation</b></td>
     <td align="center" colspan="2"><b>Partners</b></td>
   </tr>

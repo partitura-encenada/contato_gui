@@ -1,0 +1,16 @@
+{
+  "sections": 4,
+  "instrument": 0,
+  "notes": [
+    "Mi 3",
+    "Ré 3",
+    "Dó# 3",
+    "Si 2"
+  ],
+  "midi_port_index": 0,
+  "midi_channel": 9,
+  "legato_enabled": false,
+  "tilt_enabled": false,
+  "direction": 1,
+  "accel_level": "Suave"
+}
