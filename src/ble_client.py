@@ -37,6 +37,7 @@ class BleConnection(QObject):
         raw = bytes(data)
         if len(raw) < 3:
             return
+        # chamada direta evita o despacho pelo event loop do Qt
         self.midi.send(list(raw[-3:]))
 
     async def connect(self, device) -> None:
@@ -46,6 +47,7 @@ class BleConnection(QObject):
                 print(f"Conectado a {device.name} / {device.address}")
                 self.connected.emit()
 
+                # lê estado inicial antes de ativar notificações
                 state: dict = {}
 
                 section_bytes = await client.read_gatt_char(SECTIONS_CHAR_UUID)

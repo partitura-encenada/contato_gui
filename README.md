@@ -4,7 +4,7 @@ Aplicação desktop para controle gestual de instrumentos MIDI via Bluetooth Low
 
 ## Sobre
 
-**Contato GUI** é uma ponte BLE → MIDI que conecta o hardware Contato a qualquer sintetizador ou DAW compatível com MIDI. O dispositivo utiliza giroscópio e sensor capacitivo de toque para selecionar e acionar notas em tempo real, com baixa latência.
+**Contato GUI** é uma ponte BLE → MIDI desenvolvida como pesquisa universitária pelo grupo GruPPEn (UFRJ), com apoio do Parque Tecnológico da UFRJ. Conecta o hardware Contato a qualquer sintetizador ou DAW compatível com MIDI. O dispositivo utiliza giroscópio e sensor capacitivo de toque para selecionar e acionar notas em tempo real, com baixa latência.
 
 ## Funcionalidades
 
@@ -46,41 +46,53 @@ contato_gui/
 │   ├── main_window.py       # Janela principal
 │   ├── notes_selector.py    # Widget seletor circular de notas
 │   ├── combo_box.py         # ComboBox customizado
+│   ├── instrument_dialog.py # Seletor de instrumento
+│   ├── about_dialog.py      # Diálogo Sobre
+│   ├── splash_screen.py     # Tela de carregamento
 │   ├── ble_client.py        # Gerenciamento da conexão BLE
 │   ├── ble_scanner.py       # Descoberta de dispositivos BLE
 │   ├── midi_manager.py      # Saída MIDI
-│   ├── about_dialog.py      # Diálogo Sobre
-│   ├── instrument_dialog.py # Seletor de instrumento
-│   ├── splash_screen.py     # Tela de carregamento
 │   ├── constants.py         # UUIDs BLE, enums, constantes musicais
 │   ├── config.py            # Salvar/carregar configuração
 │   └── assets/
-│       └── logos/           # Logos dos patrocinadores
-│           ├── parque_tec.png
-│           ├── nce_ufrj.png
-│           └── inova_ufrj.png
+│       ├── splash.png       # Logo GruPPEn (tela inicial)
+│       ├── icon.ico
+│       └── logos/
+│           ├── parque_tecnologico.png
+│           ├── ufrj.png
+│           ├── inova_ufrj.png
+│           └── coppetec.png
 └── references/
     └── repertorio/          # Dados de referência de peças musicais
 ```
 
 ## Realização e Apoio
 
-Este projeto é desenvolvido com o apoio de:
-
 <table>
   <tr>
+    <td align="center" colspan="1"><b>Patrocínio</b></td>
+    <td align="center" colspan="2"><b>Filiação Institucional</b></td>
+    <td align="center" colspan="2"><b>Parceiros</b></td>
+  </tr>
+  <tr>
     <td align="center">
-      <img src="src/assets/logos/parque_tec.png" alt="UFRJ Parque Tecnológico" height="50"/><br/>
-      <b>UFRJ Parque Tecnológico</b>
+      <img src="src/assets/logos/parque_tecnologico.png" alt="Parque Tecnológico UFRJ" height="50"/><br/>
+      <b>Parque Tecnológico UFRJ</b>
     </td>
     <td align="center">
-      <img src="src/assets/logos/nce_ufrj.png" alt="NCE/UFRJ" height="50"/><br/>
-      <b>Núcleo de Computação Eletrônica<br/>Instituto Tércio Pacitti de Aplicações<br/>e Pesquisas Computacionais (NCE/UFRJ)</b>
+      <img src="src/assets/logos/ufrj.png" alt="UFRJ" height="50"/><br/>
+      <b>Universidade Federal<br/>do Rio de Janeiro</b>
+    </td>
+    <td align="center">
+      <b>Escola de Educação Física<br/>e Desportos<br/>Departamento de Arte Corporal<br/>NCE – Núcleo de Computação Eletrônica<br/>Centro de Letras e Artes</b>
     </td>
     <td align="center">
       <img src="src/assets/logos/inova_ufrj.png" alt="Inova UFRJ" height="50"/><br/>
       <b>Inova UFRJ</b>
     </td>
+    <td align="center">
+      <img src="src/assets/logos/coppetec.png" alt="Fundação Coppetec" height="50"/><br/>
+      <b>Fundação Coppetec</b>
+    </td>
   </tr>
 </table>
-

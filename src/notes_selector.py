@@ -3,8 +3,7 @@ import math
 from PyQt6.QtCore import Qt, QPointF, QRectF, pyqtSignal
 from PyQt6.QtWidgets import QFrame, QPushButton
 from PyQt6.QtGui import (
-    QPainter, QPen, QColor, QPixmap, QPainterPath,
-    QTransform,
+    QPainter, QPen, QColor, QPixmap, QPainterPath, QTransform,
 )
 
 from constants import NOTE_NAMES, INSTRUMENTS
@@ -12,10 +11,10 @@ from combo_box import ToggleEnterComboBox
 from instrument_dialog import InstrumentSelectorDialog
 
 
-_C_TRACK   = QColor(71, 85, 105, 80)
+_C_TRACK   = QColor(71,  85,  105, 80)
 _C_TICK    = QColor(100, 120, 140)
-_C_ACCENT  = QColor(50, 150, 210)
-_C_DIVIDER = QColor(50, 150, 210, 45)
+_C_ACCENT  = QColor(50,  150, 210)
+_C_DIVIDER = QColor(50,  150, 210, 45)
 
 
 class SeletorCircular(QFrame):
@@ -54,13 +53,14 @@ class SeletorCircular(QFrame):
         self.center_button.setStyleSheet("QPushButton { border-radius: 45px; font-size: 32px; }")
         self.center_button.clicked.connect(self._show_instrument_selector)
 
+        # ícone de seta desenhado em pixmap para rotação suave no paintEvent
         pix = QPixmap(22, 22)
         pix.fill(Qt.GlobalColor.transparent)
         p = QPainter(pix)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         path = QPainterPath()
         path.moveTo(11, 2);  path.lineTo(20, 11); path.lineTo(11, 20)
-        path.lineTo(10, 15); path.lineTo(15, 11); path.lineTo(10, 7)
+        path.lineTo(10, 15); path.lineTo(15, 11); path.lineTo(10,  7)
         path.closeSubpath()
         p.setPen(QPen(_C_ACCENT, 2))
         p.setBrush(_C_ACCENT)
@@ -69,7 +69,7 @@ class SeletorCircular(QFrame):
         self._hand_icon = pix
 
     def setSections(self, count: int) -> None:
-        count = int(count)
+        count     = int(count)
         old_notes = [c.currentText() for c in self.combos]
 
         self.sections = count
@@ -99,9 +99,9 @@ class SeletorCircular(QFrame):
 
         self.signalNotes.emit([c.currentText() for c in self.combos])
 
-        w, h = self.width(), self.height()
+        w, h   = self.width(), self.height()
         cx, cy = w / 2 - self.offset, h / 2
-        r = min((h / 2) - self.margin, (w - cx) - self.margin)
+        r      = min((h / 2) - self.margin, (w - cx) - self.margin)
         section_angle = math.pi / max(1, self.sections)
 
         bw, bh = self.center_button.width(), self.center_button.height()
@@ -135,38 +135,33 @@ class SeletorCircular(QFrame):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        w, h = self.width(), self.height()
+        w, h   = self.width(), self.height()
         cx, cy = w / 2 - self.offset, h / 2
-        r = min((h / 2) - self.margin, (w - cx) - self.margin)
+        r      = min((h / 2) - self.margin, (w - cx) - self.margin)
 
         section_angle    = math.pi / max(1, self.sections)
-        selected_tick    = int(
-            ((self.gyro * math.pi / -180) + math.pi / 2) / (math.pi / self.ticks)
-        )
-        selected_section = int(
-            ((self.gyro * math.pi / -180) + math.pi / 2) / (math.pi / self.sections)
-        )
+        selected_tick    = int(((self.gyro * math.pi / -180) + math.pi / 2) / (math.pi / self.ticks))
+        selected_section = int(((self.gyro * math.pi / -180) + math.pi / 2) / (math.pi / self.sections))
         start_ang, end_ang = -math.pi / 2, math.pi / 2
 
         arc_rect = QRectF(cx - r, cy - r, 2 * r, 2 * r)
         painter.setPen(QPen(_C_TRACK, 1.5))
         painter.drawArc(arc_rect, 90 * 16, -180 * 16)
 
-        inner_r = r * 0.3
+        inner_r    = r * 0.3
         inner_rect = QRectF(cx - inner_r, cy - inner_r, 2 * inner_r, 2 * inner_r)
         painter.setPen(QPen(_C_TRACK, 1))
         painter.drawArc(inner_rect, 90 * 16, -180 * 16)
 
         for i in range(self.ticks + 1):
-            t  = start_ang + (end_ang - start_ang) * (i / self.ticks)
+            t      = start_ang + (end_ang - start_ang) * (i / self.ticks)
             ox, oy = cx + r * math.cos(t), cy + r * math.sin(t)
-            tl = self.tick_long if i % 5 == 0 else self.tick_short
+            tl     = self.tick_long if i % 5 == 0 else self.tick_short
             ix, iy = cx + (r - tl) * math.cos(t), cy + (r - tl) * math.sin(t)
 
             if i == selected_tick:
-                ang_deg = math.degrees(t)
                 rotated = self._hand_icon.transformed(
-                    QTransform().rotate(ang_deg),
+                    QTransform().rotate(math.degrees(t)),
                     Qt.TransformationMode.SmoothTransformation,
                 )
                 icon_r = r + 12
@@ -200,7 +195,7 @@ class SeletorCircular(QFrame):
         painter.drawText(int(cx + r + 30), int(cy + 4), "0°")
 
         for i in range(self.sections + 1):
-            t  = start_ang + section_angle * i
+            t      = start_ang + section_angle * i
             x1, y1 = cx + r * 0.3 * math.cos(t), cy + r * 0.3 * math.sin(t)
             x2, y2 = cx + r * 0.8 * math.cos(t), cy + r * 0.8 * math.sin(t)
 
