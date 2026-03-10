@@ -1,9 +1,3 @@
-"""Inicialização da aplicação.
-
-Aplica o tema, exibe a tela de carregamento, varre dispositivos BLE,
-apresenta o seletor de dispositivo e, após a conexão, abre a janela principal.
-"""
-
 import asyncio
 import os
 
@@ -37,7 +31,6 @@ async def main_async(app) -> None:
     app_close_event = asyncio.Event()
     app.aboutToQuit.connect(app_close_event.set)
 
-    # -- Varredura BLE
     splash = SplashScreen()
     splash.show()
     app.processEvents()
@@ -46,7 +39,6 @@ async def main_async(app) -> None:
 
     splash.close()
 
-    # -- Seletor de dispositivo
     dlg = QDialog()
     dlg.setWindowTitle("Selecionar dispositivo BLE")
     dlg.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), "assets", "icon.ico")))
@@ -95,7 +87,6 @@ async def main_async(app) -> None:
         app.quit()
         return
 
-    # -- Janela principal
     midi = MidiManager(PORT_INDEX)
     ble  = BleConnection()
 
