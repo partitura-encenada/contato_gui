@@ -1,10 +1,11 @@
 # Contato GUI
+[![en](https://img.shields.io/badge/lang-en-red.svg)](README.en.md)
 
 Aplicação desktop para controle gestual de instrumentos MIDI via Bluetooth Low Energy.
 
 ## Sobre
 
-**Contato GUI** é uma ponte BLE → MIDI desenvolvida como pesquisa universitária pelo grupo GruPPEn (UFRJ), com apoio do Parque Tecnológico da UFRJ. Conecta o hardware Contato a qualquer sintetizador ou DAW compatível com MIDI. O dispositivo utiliza giroscópio e sensor capacitivo de toque para selecionar e acionar notas em tempo real, com baixa latência.
+**Contato GUI** é uma interface gráfica desenvolvida para pesquisa universitária pelo Grupo de Pesquisa Partitura Encenada (GruPPEn), com apoio do Parque Tecnológico da UFRJ. Conecta o hardware Contato a qualquer sintetizador ou DAW compatível com MIDI. O dispositivo utiliza giroscópio e sensor capacitivo de toque para selecionar e acionar notas em tempo real.
 
 ## Funcionalidades
 
@@ -14,9 +15,10 @@ Aplicação desktop para controle gestual de instrumentos MIDI via Bluetooth Low
 - Seleção de instrumento via Program Change MIDI (16 instrumentos GM)
 - Configuração de sensibilidade do acelerômetro (Suave / Médio / Forte)
 - Direção do mapeamento do giroscópio configurável (Esquerda / Direita)
+- Pitch bend pela inclinação do antebraço, com zona morta de ±10°
+- Modo Legato: a nota segura sozinha até você tocar outra ou acionar a percussão
 - Seleção de porta MIDI de saída e canal (1–16)
 - Salvar e carregar configurações em arquivo JSON
-- Interface em PyQt6 com tema claro
 
 ## Requisitos
 
@@ -45,12 +47,13 @@ pip install pyinstaller
 pyinstaller --noconfirm --windowed --onefile --icon=src/assets/icon.ico --name=Contato --add-data "src/assets;assets" src/__main__.py
 ```
 
-O executável é gerado em `dist/Contato.exe`. Os artefatos de build (`build/`, `dist/`, `*.spec`) são ignorados pelo git.
+O executável é gerado em `dist/Contato.exe`.
 
 ## Estrutura do Projeto
 
 ```
 contato_gui/
+├── repertorio/ # Setups para testes
 ├── src/
 │   ├── __main__.py          # Ponto de entrada
 │   ├── app.py               # Inicialização da aplicação
@@ -73,8 +76,6 @@ contato_gui/
 │           ├── ufrj.png
 │           ├── inova_ufrj.png
 │           └── coppetec.png
-└── references/
-    └── repertorio/          # Dados de referência de peças musicais
 ```
 
 ## Realização e Apoio

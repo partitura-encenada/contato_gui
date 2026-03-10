@@ -13,6 +13,7 @@ from constants import (
     BLE_MIDI_CHAR_UUID,
     DIR_CHAR_UUID,
     TILT_CHAR_UUID,
+    LEGATO_CHAR_UUID,
     AccelLevel,
     NOTE_NAMES,
     name_to_midi,
@@ -69,6 +70,9 @@ class BleConnection(QObject):
                 tilt_bytes = await client.read_gatt_char(TILT_CHAR_UUID)
                 state["tilt_enabled"] = tilt_bytes[0] != 0
 
+                legato_bytes = await client.read_gatt_char(LEGATO_CHAR_UUID)
+                state["legato_enabled"] = legato_bytes[0] != 0
+
                 self.initial_state.emit(state)
 
                 await client.start_notify(BLE_MIDI_CHAR_UUID, self._on_midi)
@@ -100,6 +104,10 @@ class BleConnection(QObject):
     async def write_tilt_enabled(self, enabled: bool) -> None:
         await self._client.write_gatt_char(TILT_CHAR_UUID, bytes([1 if enabled else 0]), response=True)
         print(f"Pitch bend → {'on' if enabled else 'off'}")
+
+    async def write_legato_enabled(self, enabled: bool) -> None:
+        await self._client.write_gatt_char(LEGATO_CHAR_UUID, bytes([1 if enabled else 0]), response=True)
+        print(f"Legato → {'on' if enabled else 'off'}")
 
     async def calibrate(self) -> None:
         await self._client.write_gatt_char(CALIBRATE_CHAR_UUID, bytes([0x01]), response=True)

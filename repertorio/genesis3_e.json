@@ -1,0 +1,16 @@
+{
+  "sections": 4,
+  "instrument": 0,
+  "notes": [
+    "Ré# 5",
+    "Lá 5",
+    "Dó 5",
+    "Fá# 5"
+  ],
+  "midi_port_index": 0,
+  "midi_channel": 7,
+  "legato_enabled": false,
+  "tilt_enabled": false,
+  "direction": 1,
+  "accel_level": "Médio"
+}
