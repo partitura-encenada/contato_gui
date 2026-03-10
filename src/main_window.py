@@ -68,7 +68,7 @@ class MainWindow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # ── Topbar ────────────────────────────────────────────────────────────
+        # -- Topbar
         topbar_frame = QFrame()
         topbar_frame.setFixedHeight(40)
         topbar_frame.setStyleSheet("QFrame { border-bottom: 1px solid #555; }")
@@ -103,7 +103,7 @@ class MainWindow(QWidget):
         topbar.addWidget(about_btn)
         layout.addWidget(topbar_frame)
 
-        # ── Selector ──────────────────────────────────────────────────────────
+        # -- Seletor circular
         self.selector = SeletorCircular(sections=6, ticks=60)
         self.selector.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout.addWidget(self.selector, stretch=1)
@@ -111,7 +111,7 @@ class MainWindow(QWidget):
         self.selector.signalInstrumentChanged.connect(self._on_instrument_changed)
         self.selector.signalNotePreview.connect(self._on_note_preview)
 
-        # ── Controls card ─────────────────────────────────────────────────────
+        # -- Painel de controles
         card = QFrame()
         card.setObjectName("ControlsCard")
         outer = QVBoxLayout(card)
@@ -174,7 +174,7 @@ class MainWindow(QWidget):
         outer.addLayout(grid)
         layout.addWidget(card)
 
-        # ── Footer ────────────────────────────────────────────────────────────
+        # -- Rodapé de status
         footer = QFrame()
         footer.setFixedHeight(22)
         footer.setStyleSheet("QFrame { background-color: #dde8ee; }")
@@ -192,7 +192,7 @@ class MainWindow(QWidget):
         self.overlay = LoadingOverlay(self)
         self.overlay.show_overlay("Conectando...")
 
-        # Sinais BLE
+        # -- Sinais BLE
         self.ble.midi = midi
         self.ble.status_received.connect(self._on_ble_status)
         self.ble.initial_state.connect(self._apply_initial_state)
@@ -207,7 +207,7 @@ class MainWindow(QWidget):
         if device:
             asyncio.create_task(self.ble.connect(device))
 
-    # ── Manipuladores de sinais BLE ───────────────────────────────────────────
+    # -- Manipuladores de sinais BLE
 
     def _set_status(self, msg: str) -> None:
         self._status_label.setText(msg)
@@ -224,7 +224,7 @@ class MainWindow(QWidget):
             self.overlay.hide_overlay()
 
         if touch and not self._last_touch:
-            # Map gyro angle to the current section's note name
+            # mapeia o ângulo do giroscópio para a nota da seção atual
             notes = [c.currentText() for c in self.selector.combos]
             section = int((-gyro + GYRO_MAX_DEG) / (2 * GYRO_MAX_DEG) * len(notes))
             self._last_touch_note = notes[section]
@@ -283,7 +283,7 @@ class MainWindow(QWidget):
         self._set_controls_enabled(True)
         self.overlay.hide_overlay()
 
-    # ── Manipuladores de eventos da UI ────────────────────────────────────────
+    # -- Manipuladores de eventos da UI
 
     @asyncSlot(int, str)
     async def _on_instrument_changed(self, index: int, name: str) -> None:
