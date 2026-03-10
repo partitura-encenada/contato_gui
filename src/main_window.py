@@ -193,8 +193,8 @@ class MainWindow(QWidget):
         self.overlay.show_overlay("Conectando...")
 
         # Sinais BLE
+        self.ble.midi = midi
         self.ble.status_received.connect(self._on_ble_status)
-        self.ble.midi_received.connect(self.midi.send)
         self.ble.initial_state.connect(self._apply_initial_state)
         self.ble.disconnected.connect(self._on_ble_disconnected)
 
