@@ -165,8 +165,13 @@ class MainWindow(QWidget):
         grid.addWidget(muted("Pitch bend"), 3, 0)
         grid.addWidget(self.tilt_check, 3, 1, Qt.AlignmentFlag.AlignRight)
 
-        grid.addWidget(muted("Saída MIDI"), 4, 0)
-        grid.addWidget(midi_container, 4, 1)
+        self.legato_check = QCheckBox()
+        self.legato_check.stateChanged.connect(self._on_legato_changed)
+        grid.addWidget(muted("Legato"), 4, 0)
+        grid.addWidget(self.legato_check, 4, 1, Qt.AlignmentFlag.AlignRight)
+
+        grid.addWidget(muted("Saída MIDI"), 5, 0)
+        grid.addWidget(midi_container, 5, 1)
         outer.addLayout(grid)
         layout.addWidget(card)
 
@@ -239,6 +244,7 @@ class MainWindow(QWidget):
         self.dir_combo.setEnabled(enabled)
         self.accel_combo.setEnabled(enabled)
         self.tilt_check.setEnabled(enabled)
+        self.legato_check.setEnabled(enabled)
         self.midi_output_combo.setEnabled(enabled)
         self.channel_combo.setEnabled(enabled)
         self.cal_btn.setEnabled(enabled)
@@ -278,6 +284,11 @@ class MainWindow(QWidget):
             self.tilt_check.blockSignals(False)
             self.selector.tilt_enabled = state["tilt_enabled"]
 
+        if "legato_enabled" in state:
+            self.legato_check.blockSignals(True)
+            self.legato_check.setChecked(state["legato_enabled"])
+            self.legato_check.blockSignals(False)
+
         self._set_controls_enabled(True)
         self.overlay.hide_overlay()
 
@@ -306,6 +317,10 @@ class MainWindow(QWidget):
         enabled = bool(state)
         self.selector.tilt_enabled = enabled
         await self.ble.write_tilt_enabled(enabled)
+
+    @asyncSlot(int)
+    async def _on_legato_changed(self, state: int) -> None:
+        await self.ble.write_legato_enabled(bool(state))
 
     @asyncSlot(int)
     async def _on_direction_changed(self, idx: int) -> None:

@@ -1,0 +1,15 @@
+{
+  "sections": 3,
+  "instrument": 0,
+  "notes": [
+    "Sol 6",
+    "Lá 6",
+    "Si 6"
+  ],
+  "midi_port_index": 0,
+  "midi_channel": 2,
+  "legato_enabled": false,
+  "tilt_enabled": false,
+  "direction": 0,
+  "accel_level": "Suave"
+}

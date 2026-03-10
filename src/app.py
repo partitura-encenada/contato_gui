@@ -97,3 +97,5 @@ async def main_async(app) -> None:
     win.show()
 
     await app_close_event.wait()
+    for ch in range(16):
+        midi.all_notes_off(ch)
