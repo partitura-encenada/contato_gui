@@ -1,6 +1,3 @@
-# Ponto de entrada da aplicação Contato GUI.
-# Configura o loop de eventos assíncrono do Qt via qasync e inicia a corrotina principal.
-
 import sys
 import os
 import asyncio

@@ -1,25 +1,19 @@
-"""Diálogo de seleção de instrumento MIDI.
-
-Exibe uma grade de botões com emoji e nome de cada instrumento GM disponível.
-O instrumento atualmente ativo é destacado visualmente.
-"""
 import os
 
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QDialog, QGridLayout, QPushButton
 from PyQt6.QtGui import QIcon
 
+
 class InstrumentSelectorDialog(QDialog):
-    instrumentSelected = pyqtSignal(int)  # emitido com o índice do instrumento escolhido
+    instrumentSelected = pyqtSignal(int)
 
     def __init__(self, instruments: list[tuple[str, str]], current_index: int, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Selecionar Instrumento")
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icon.ico")
-        self.setWindowIcon(QIcon(icon_path))
+        self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), "assets", "icon.ico")))
         self.setModal(True)
 
-        # Grade de 4 colunas com um botão por instrumento
         grid = QGridLayout(self)
         grid.setSpacing(10)
         grid.setContentsMargins(20, 20, 20, 20)

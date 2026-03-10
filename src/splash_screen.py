@@ -1,9 +1,7 @@
-# Tela de carregamento exibida durante a varredura BLE inicial.
-
 import os
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QApplication
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QApplication
 from PyQt6.QtGui import QPixmap, QPainter, QColor
 
 _ASSETS = os.path.join(os.path.dirname(__file__), "assets")
@@ -52,7 +50,6 @@ class SplashScreen(QWidget):
         self._center()
 
     def _center(self) -> None:
-        from PyQt6.QtWidgets import QApplication
         screen = QApplication.primaryScreen().geometry()
         self.move(
             (screen.width()  - self.width())  // 2,

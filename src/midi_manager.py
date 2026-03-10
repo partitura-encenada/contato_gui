@@ -1,48 +1,35 @@
-"""Gerenciador de saída MIDI via python-rtmidi.
-
-Abstrai a abertura de portas e o envio de mensagens MIDI brutas,
-incluindo Program Change para seleção de instrumento.
-"""
-
 import threading
 import rtmidi
 
+
 class MidiManager:
     def __init__(self, port_index: int = 0):
-        """Inicializa a saída MIDI e abre a porta no índice especificado."""
         self._out   = rtmidi.MidiOut()
         self._ports: list[str] = self._out.get_ports()
-
         self._out.open_port(port_index)
         print(f"MIDI → [{port_index}] {self._ports[port_index]}")
 
     @property
     def ports(self) -> list[str]:
-        """Lista de nomes das portas MIDI de saída disponíveis no sistema."""
         return list(self._ports)
 
     def open_port(self, idx: int) -> None:
-        """Fecha a porta atual e abre a porta no índice especificado."""
         self._out.close_port()
         self._out.open_port(idx)
         print(f"MIDI → [{idx}] {self._ports[idx]}")
 
     def send(self, msg: list) -> None:
-        """Envia uma mensagem MIDI bruta (lista de bytes) para a porta aberta."""
         self._out.send_message(msg)
 
     def program_change(self, channel: int, program: int) -> None:
-        """Envia Program Change para selecionar instrumento GM no canal especificado."""
         status = 0xC0 | (channel & 0x0F)
         self.send([status, program & 0x7F])
         print(f"Program Change → ch={channel + 1}, prog={program}")
 
     def all_notes_off(self, channel: int) -> None:
-        """Envia All Notes Off (CC 123) no canal especificado."""
         self.send([0xB0 | (channel & 0x0F), 123, 0])
 
     def preview_note(self, channel: int, note: int, duration_ms: int = 350) -> None:
-        """Toca uma nota brevemente para pré-visualização (note-on + note-off automático)."""
         self.send([0x90 | (channel & 0x0F), note & 0x7F, 80])
         threading.Timer(
             duration_ms / 1000.0,
