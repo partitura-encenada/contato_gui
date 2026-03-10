@@ -1,10 +1,3 @@
-"""Gerenciamento da conexão BLE com o dispositivo Contato.
-
-Mantém o cliente Bleak ativo com reconexão automática, despacha notificações
-de status e MIDI, e expõe métodos assíncronos para escrever configurações
-no hardware via GATT.
-"""
-
 import asyncio
 import struct
 
@@ -26,8 +19,8 @@ from constants import (
 
 
 class BleConnection(QObject):
-    status_received = pyqtSignal(int, bool, int)   # (gyro_x, touch, state)
-    initial_state   = pyqtSignal(dict)             # estado inicial lido do hardware
+    status_received = pyqtSignal(int, bool, int)
+    initial_state   = pyqtSignal(dict)
     connected       = pyqtSignal()
     disconnected    = pyqtSignal()
 
@@ -35,8 +28,6 @@ class BleConnection(QObject):
         super().__init__(parent)
         self._client: BleakClient | None = None
         self.midi = None
-
-    # -- Callbacks de notificação BLE
 
     def _on_status(self, _: BleakGATTCharacteristic, data: bytearray):
         state, touch, gyro_x, accel_x = struct.unpack("<BBhh", data)
@@ -48,8 +39,6 @@ class BleConnection(QObject):
             return
         self.midi.send(list(raw[-3:]))
 
-    # -- Loop de conexão com reconexão automática
-
     async def connect(self, device) -> None:
         while True:
             async with BleakClient(device) as client:
@@ -57,7 +46,23 @@ class BleConnection(QObject):
                 print(f"Conectado a {device.name} / {device.address}")
                 self.connected.emit()
 
-                state = await self._read_initial_state(client)
+                state: dict = {}
+
+                section_bytes = await client.read_gatt_char(SECTIONS_CHAR_UUID)
+                notes = []
+                for b in section_bytes:
+                    note   = NOTE_NAMES[b % 12]
+                    octave = max(1, min(5, (b // 12) - 1))
+                    notes.append(f"{note} {octave}")
+                state["notes"] = notes
+
+                sens_bytes = await client.read_gatt_char(ACCEL_SENS_CHARACTERISTIC_UUID)
+                raw = int.from_bytes(sens_bytes[:4], "little", signed=True)
+                state["accel_level"] = min(AccelLevel, key=lambda lvl: abs(lvl.value - raw))
+
+                dir_bytes = await client.read_gatt_char(DIR_CHAR_UUID)
+                state["direction"] = 1 if dir_bytes[0] != 0 else 0
+
                 self.initial_state.emit(state)
 
                 await client.start_notify(BLE_MIDI_CHAR_UUID, self._on_midi)
@@ -70,28 +75,6 @@ class BleConnection(QObject):
             self.disconnected.emit()
             print("Desconectado. Tentando reconectar em 3s...")
             await asyncio.sleep(3)
-
-    async def _read_initial_state(self, client: BleakClient) -> dict:
-        state: dict = {}
-
-        section_bytes = await client.read_gatt_char(SECTIONS_CHAR_UUID)
-        notes = []
-        for b in section_bytes:
-            note   = NOTE_NAMES[b % 12]
-            octave = max(1, min(5, (b // 12) - 1))
-            notes.append(f"{note} {octave}")
-        state["notes"] = notes
-
-        sens_bytes = await client.read_gatt_char(ACCEL_SENS_CHARACTERISTIC_UUID)
-        raw = int.from_bytes(sens_bytes[:4], "little", signed=True)
-        state["accel_level"] = min(AccelLevel, key=lambda lvl: abs(lvl.value - raw))
-
-        dir_bytes = await client.read_gatt_char(DIR_CHAR_UUID)
-        state["direction"] = 1 if dir_bytes[0] != 0 else 0
-
-        return state
-
-    # -- Escrita no hardware
 
     async def write_sections(self, notes_list: list) -> None:
         midi_bytes = bytes([name_to_midi(n) for n in notes_list])

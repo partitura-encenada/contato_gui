@@ -1,5 +1,3 @@
-"""Diálogo 'Sobre' com informações do projeto e créditos dos patrocinadores."""
-
 import os
 
 from PyQt6.QtCore import Qt
@@ -55,7 +53,6 @@ class AboutDialog(QDialog):
         layout.setContentsMargins(28, 22, 28, 22)
         layout.setSpacing(0)
 
-        # -- Título e descrição
         title = QLabel("Sobre")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         desc = QLabel(
@@ -74,7 +71,6 @@ class AboutDialog(QDialog):
         layout.addWidget(desc)
         layout.addSpacing(10)
 
-        # -- Logo do aplicativo
         splash_path = os.path.join(os.path.dirname(__file__), "assets", "splash.png")
         pix = QPixmap(splash_path).scaled(
             60, 60,
@@ -87,7 +83,6 @@ class AboutDialog(QDialog):
         layout.addWidget(app_logo)
         layout.addSpacing(14)
 
-        # -- Patrocínio
         layout.addWidget(_divider())
         layout.addSpacing(12)
         layout.addWidget(_section_title("Patrocínio"))
@@ -99,7 +94,6 @@ class AboutDialog(QDialog):
         layout.addLayout(row_pat)
         layout.addSpacing(14)
 
-        # -- Filiação Institucional
         layout.addWidget(_divider())
         layout.addSpacing(12)
         layout.addWidget(_section_title("Filiação Institucional"))
@@ -122,7 +116,6 @@ class AboutDialog(QDialog):
 
         layout.addSpacing(14)
 
-        # -- Parceiros
         layout.addWidget(_divider())
         layout.addSpacing(12)
         layout.addWidget(_section_title("Parceiros"))

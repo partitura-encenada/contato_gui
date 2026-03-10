@@ -1,16 +1,9 @@
-"""Persistência de configuração da sessão em arquivo JSON.
-
-Salva e carrega as notas, instrumento, porta MIDI e canal selecionados
-pelo usuário, permitindo retomar rapidamente uma configuração anterior.
-"""
-
 import json
 
 from PyQt6.QtWidgets import QFileDialog, QWidget
 
 
 def save_setup(window: QWidget, parent: QWidget | None = None) -> None:
-    """Abre diálogo de salvamento e grava a configuração atual em JSON."""
     path, _ = QFileDialog.getSaveFileName(
         parent, "Salvar Configuração", "", "JSON Files (*.json)"
     )
@@ -30,7 +23,6 @@ def save_setup(window: QWidget, parent: QWidget | None = None) -> None:
 
 
 def load_setup(window: QWidget, parent: QWidget | None = None) -> None:
-    """Abre diálogo de carregamento e aplica a configuração do arquivo JSON."""
     path, _ = QFileDialog.getOpenFileName(
         parent, "Abrir Configuração", "", "JSON Files (*.json)"
     )
