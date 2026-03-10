@@ -1,6 +1,6 @@
-"""Inicialização da aplicação
+"""Inicialização da aplicação.
 
-Aplica o tema escuro, exibe a tela de carregamento, varre dispositivos BLE,
+Aplica o tema, exibe a tela de carregamento, varre dispositivos BLE,
 apresenta o seletor de dispositivo e, após a conexão, abre a janela principal.
 """
 
@@ -13,11 +13,11 @@ from PyQt6.QtWidgets import (
     QLabel, QPushButton, QListWidget, QListWidgetItem,
 )
 from PyQt6.QtGui import QIcon
-from bleak import BleakScanner
 
 from ble_client import BleConnection
+from ble_scanner import scan_devices
 from midi_manager import MidiManager
-from constants import PORT_INDEX, BLE_MIDI_SERVICE_UUID
+from constants import PORT_INDEX
 from main_window import MainWindow
 from splash_screen import SplashScreen
 
@@ -25,7 +25,7 @@ from splash_screen import SplashScreen
 async def main_async(app) -> None:
     app.setStyleSheet("""
         QWidget     { background-color: #eaf4fb; color: #1a3a4a; }
-        QPushButton { background-color: #f5fbff; border: 1px solid #7dbfe8; border-radius: 6px; padding: 4px 10px; }
+        QPushButton { background-color: #f5fbff; border: 1px solid #7dbfe8; padding: 4px 10px; }
         QPushButton:hover   { background-color: #d0ecf8; }
         QPushButton:pressed { background-color: #7dbfe8; }
         QComboBox   { border: 1px solid #7dbfe8; padding: 4px }
@@ -37,28 +37,26 @@ async def main_async(app) -> None:
     app_close_event = asyncio.Event()
     app.aboutToQuit.connect(app_close_event.set)
 
+    # -- Varredura BLE
     splash = SplashScreen()
     splash.show()
     app.processEvents()
 
-    # 3s BLE scan filtered by MIDI service UUID
-    devices = await BleakScanner.discover(timeout=3.0, service_uuids=[BLE_MIDI_SERVICE_UUID])
+    devices = await scan_devices()
 
     splash.close()
 
-    # Device picker dialog
+    # -- Seletor de dispositivo
     dlg = QDialog()
     dlg.setWindowTitle("Selecionar dispositivo BLE")
     dlg.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), "assets", "icon.ico")))
     dlg.setModal(True)
     dlg.setMinimumWidth(360)
-
     layout = QVBoxLayout(dlg)
     layout.setContentsMargins(20, 18, 20, 18)
     layout.setSpacing(12)
     layout.addWidget(QLabel("Dispositivos encontrados"))
     layout.addWidget(QLabel("Selecione o dispositivo 'Contato' para conectar:"))
-
     listw = QListWidget(dlg)
     listw.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
     listw.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -67,7 +65,6 @@ async def main_async(app) -> None:
         item.setData(Qt.ItemDataRole.UserRole, d)
         listw.addItem(item)
     layout.addWidget(listw)
-
     hl = QHBoxLayout()
     hl.setSpacing(8)
     btn_cancel = QPushButton("Cancelar")
@@ -79,7 +76,6 @@ async def main_async(app) -> None:
     layout.addLayout(hl)
 
     result: dict = {"device": None}
-
     def on_ok():
         sel = listw.currentItem()
         if sel:
@@ -99,6 +95,7 @@ async def main_async(app) -> None:
         app.quit()
         return
 
+    # -- Janela principal
     midi = MidiManager(PORT_INDEX)
     ble  = BleConnection()
 

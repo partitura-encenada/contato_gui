@@ -1,8 +1,8 @@
 """Gerenciamento da conexão BLE com o dispositivo Contato.
 
 Mantém o cliente Bleak ativo com reconexão automática, despacha notificações
-de status e MIDI como sinais PyQt, e expõe métodos assíncronos para escrever
-configurações no hardware via GATT.
+de status e MIDI, e expõe métodos assíncronos para escrever configurações
+no hardware via GATT.
 """
 
 import asyncio
@@ -27,7 +27,7 @@ from constants import (
 
 class BleConnection(QObject):
     status_received = pyqtSignal(int, bool, int)   # (gyro_x, touch, state)
-    initial_state   = pyqtSignal(dict)         # estado inicial lido do hardware
+    initial_state   = pyqtSignal(dict)             # estado inicial lido do hardware
     connected       = pyqtSignal()
     disconnected    = pyqtSignal()
 
@@ -36,7 +36,7 @@ class BleConnection(QObject):
         self._client: BleakClient | None = None
         self.midi = None
 
-    # ── Callbacks de notificação BLE ──────────────────────────────────────────
+    # -- Callbacks de notificação BLE
 
     def _on_status(self, _: BleakGATTCharacteristic, data: bytearray):
         state, touch, gyro_x, accel_x = struct.unpack("<BBhh", data)
@@ -48,10 +48,9 @@ class BleConnection(QObject):
             return
         self.midi.send(list(raw[-3:]))
 
-    # ── Loop de conexão com reconexão automática ───────────────────────────────
+    # -- Loop de conexão com reconexão automática
 
     async def connect(self, device) -> None:
-        """Conecta ao dispositivo e reconecta automaticamente após desconexão."""
         while True:
             async with BleakClient(device) as client:
                 self._client = client
@@ -92,7 +91,7 @@ class BleConnection(QObject):
 
         return state
 
-    # ── Escrita no hardware ───────────────────────────────────────────────────
+    # -- Escrita no hardware
 
     async def write_sections(self, notes_list: list) -> None:
         midi_bytes = bytes([name_to_midi(n) for n in notes_list])
