@@ -175,6 +175,7 @@ class MainWindow(QWidget):
         row.addStretch()
         layout.addWidget(footer)
 
+        # conectado após a construção dos controles para evitar escrita BLE durante o init
         self.selector.signalNotes.connect(self._on_notes_changed)
 
         self.overlay = LoadingOverlay(self)
@@ -209,7 +210,7 @@ class MainWindow(QWidget):
             self.overlay.hide_overlay()
 
         if touch and not self._last_touch:
-            notes = [c.currentText() for c in self.selector.combos]
+            notes   = [c.currentText() for c in self.selector.combos]
             section = int((-gyro + GYRO_MAX_DEG) / (2 * GYRO_MAX_DEG) * len(notes))
             self._last_touch_note = notes[section]
             self._set_status(f"Nota {self._last_touch_note} ativada")

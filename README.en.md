@@ -4,7 +4,7 @@ Desktop application for gestural MIDI instrument control via Bluetooth Low Energ
 
 ## About
 
-**Contato GUI** is a BLE → MIDI bridge that connects the Contato hardware to any MIDI-compatible synthesizer or DAW. The device uses a gyroscope and capacitive touch sensor to select and trigger notes in real time with low latency.
+**Contato GUI** is a BLE → MIDI bridge developed as a university research project by the GruPPEn group (UFRJ), with support from UFRJ's Technology Park. It connects the Contato hardware to any MIDI-compatible synthesizer or DAW. The device uses a gyroscope and capacitive touch sensor to select and trigger notes in real time with low latency.
 
 ## Features
 
@@ -16,7 +16,7 @@ Desktop application for gestural MIDI instrument control via Bluetooth Low Energ
 - Configurable gyroscope mapping direction (Left / Right)
 - MIDI output port and channel selection (1–16)
 - Save and load session configurations as JSON files
-- Dark theme with custom PyQt6 interface
+- Light theme PyQt6 interface
 
 ## Requirements
 
@@ -42,52 +42,57 @@ python -m src
 contato_gui/
 ├── src/
 │   ├── __main__.py          # Entry point
+│   ├── app.py               # Application startup
+│   ├── main_window.py       # Main window
+│   ├── notes_selector.py    # Circular note selector widget
+│   ├── combo_box.py         # Custom combo box
+│   ├── instrument_dialog.py # Instrument selector dialog
+│   ├── about_dialog.py      # About dialog
+│   ├── splash_screen.py     # Splash screen
+│   ├── ble_client.py        # BLE connection management
+│   ├── ble_scanner.py       # BLE device discovery
+│   ├── midi_manager.py      # MIDI output
 │   ├── constants.py         # BLE UUIDs, enums, music constants
 │   ├── config.py            # Save/load configuration
-│   ├── ble/
-│   │   ├── scanner.py       # BLE device discovery
-│   │   └── client.py        # BLE connection management
-│   ├── midi/
-│   │   └── manager.py       # MIDI output
-│   ├── ui/
-│   │   ├── app.py           # Application startup
-│   │   ├── main_window.py   # Main window
-│   │   ├── theme.py         # Dark theme
-│   │   ├── splash.py        # Splash screen
-│   │   ├── dialogs/
-│   │   │   ├── about.py     # About dialog
-│   │   │   └── instrument.py# Instrument selector
-│   │   └── widgets/
-│   │       ├── notes_selector.py  # Circular selector widget
-│   │       └── combo_box.py       # Custom combo box
 │   └── assets/
-│       └── logos/           # Sponsor logos (add manually)
-│           ├── parque_tec.png
-│           ├── nce_ufrj.png
-│           └── inova_ufrj.png
+│       ├── splash.png       # GruPPEn logo (splash screen)
+│       ├── icon.ico
+│       └── logos/
+│           ├── parque_tecnologico.png
+│           ├── ufrj.png
+│           ├── inova_ufrj.png
+│           └── coppetec.png
 └── references/
     └── repertorio/          # Musical piece reference data
 ```
 
 ## Support and Sponsorship
 
-This project is developed with the support of:
-
 <table>
   <tr>
+    <td align="center" colspan="1"><b>Sponsorship</b></td>
+    <td align="center" colspan="2"><b>Institutional Affiliation</b></td>
+    <td align="center" colspan="2"><b>Partners</b></td>
+  </tr>
+  <tr>
     <td align="center">
-      <img src="src/assets/logos/parque_tec.png" alt="UFRJ Parque Tecnológico" height="50"/><br/>
-      <b>UFRJ Parque Tecnológico</b>
+      <img src="src/assets/logos/parque_tecnologico.png" alt="UFRJ Technology Park" height="50"/><br/>
+      <b>UFRJ Technology Park</b>
     </td>
     <td align="center">
-      <img src="src/assets/logos/nce_ufrj.png" alt="NCE/UFRJ" height="50"/><br/>
-      <b>Núcleo de Computação Eletrônica<br/>Instituto Tércio Pacitti de Aplicações<br/>e Pesquisas Computacionais (NCE/UFRJ)</b>
+      <img src="src/assets/logos/ufrj.png" alt="UFRJ" height="50"/><br/>
+      <b>Federal University<br/>of Rio de Janeiro</b>
+    </td>
+    <td align="center">
+      <b>School of Physical Education<br/>and Sports<br/>Department of Body Arts<br/>NCE – Electronic Computing Nucleus<br/>Center for Arts and Letters</b>
     </td>
     <td align="center">
       <img src="src/assets/logos/inova_ufrj.png" alt="Inova UFRJ" height="50"/><br/>
       <b>Inova UFRJ</b>
     </td>
+    <td align="center">
+      <img src="src/assets/logos/coppetec.png" alt="Fundação Coppetec" height="50"/><br/>
+      <b>Fundação Coppetec</b>
+    </td>
   </tr>
 </table>
-
-> **Note:** Place logo image files in `src/assets/logos/` for them to appear here and in the application's About dialog.

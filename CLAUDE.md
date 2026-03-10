@@ -23,7 +23,7 @@ The hardware advertises a single BLE service (`03B80E5A-EDE8-4B33-A751-6CE34EC4C
 | Characteristic | Direction | Description |
 |---|---|---|
 | `MIDI_CHAR` | hardware → GUI (notify) | BLE MIDI packets (5-byte, standard Apple spec) |
-| `STATUS_CHAR` | hardware → GUI (notify) | 5-byte struct `<hhB`: gyro_x (int16), accel_x (int16), touch (uint8) |
+| `STATUS_CHAR` | hardware → GUI (notify) | 6-byte struct `<BBhh`: state (uint8), touch (uint8), gyro_x (int16), accel_x (int16) |
 | `SECTIONS_CHAR` | GUI → hardware (write) / hardware → GUI (read) | Array of MIDI note bytes, one per gyro section (1–8) |
 | `ACCEL_SENS_CHAR` | GUI → hardware (write) / hardware → GUI (read) | int16 percussion sensitivity threshold |
 | `DIR_CHAR` | GUI → hardware (write) / hardware → GUI (read) | uint8 gyro direction inversion flag (0 or 1) |
@@ -31,7 +31,7 @@ The hardware advertises a single BLE service (`03B80E5A-EDE8-4B33-A751-6CE34EC4C
 
 ### Hardware behaviour (relevant to the GUI)
 
-- Roll angle is clamped to ±90° (`GYRO_MAX_DEG` in `constants.py`), mapped to a note section index, and included in every `STATUS_CHAR` notify (~333 Hz).
+- Roll angle is clamped to ±90° (`GYRO_MAX_DEG` in `constants.py`), mapped to a note section index, and included in every `STATUS_CHAR` notify (~50 Hz).
 - Touch on GPIO T3 triggers Note-On; release triggers Note-Off on the current section's note.
 - Linear acceleration on X above the threshold triggers a percussion note on MIDI channel 8 (note 36, Bass Drum).
 - All configuration (sections, sensitivity, direction) is persisted in ESP32 NVS and read back on startup — which is why the GUI reads initial state immediately after connecting.
@@ -47,28 +47,28 @@ The hardware advertises a single BLE service (`03B80E5A-EDE8-4B33-A751-6CE34EC4C
 ### Data flow
 
 ```
-Hardware (BLE) ──notify──► BleConnection ──pyqtSignal──► MainWindow ──► MidiManager ──► MIDI port
-                                                                ▲
-                                                         UI controls
-                                                      (SeletorCircular, combos)
+Hardware (BLE) --notify--> BleConnection --pyqtSignal--> MainWindow --> MidiManager --> MIDI port
+                                                               ^
+                                                          UI controls
+                                                       (SeletorCircular, combos)
 ```
 
-- `BleConnection` (`ble_client.py`) wraps a `BleakClient` as a `QObject`, emitting `status_received(gyro_x, touch)` and `midi_received(msg)`.
-- `MainWindow` connects those signals and forwards MIDI bytes to `MidiManager.send()`.
+- `BleConnection` (`ble_client.py`) wraps a `BleakClient` as a `QObject`, emitting `status_received(gyro_x, touch, state)` and calling `midi.send()` directly from the BLE callback thread (bypassing the Qt signal queue for lower latency).
+- `MainWindow` connects BLE signals and updates the UI.
 - User configuration changes are sent back via `write_gatt_char` on the corresponding UUIDs.
 
 ### Startup sequence
 
 1. `SplashScreen` shown while `scan_devices()` runs a 3s BLE scan filtered by `BLE_MIDI_SERVICE_UUID`.
-2. `pick_device()` shows a modal dialog to choose a device.
+2. A modal dialog lets the user pick a device.
 3. `MainWindow` is created; `BleConnection.connect()` is started as an `asyncio.create_task`.
-4. On connection, `_read_initial_state()` reads the hardware's current config and emits `initial_state`. `MainWindow._apply_initial_state()` populates the controls, then re-enables them (they start disabled).
+4. On connection, initial state (sections, sensitivity, direction) is read inline inside `connect()` and emitted as `initial_state`. `MainWindow._apply_initial_state()` populates the controls, then re-enables them (they start disabled).
 
 ### UI structure
 
 `SeletorCircular` (`notes_selector.py`) is the central custom widget: a semicircular arc that visualises the gyro position and lets the user assign notes to each section.
 
-`LoadingOverlay` (defined in `main_window.py`) is a full-window semi-transparent overlay with a braille spinner animation. It shows "Conectando..." on startup, "Reconectando..." on disconnect, and "Calibrando..." while calibration is in progress. It is hidden when `_apply_initial_state` runs (initial state received) or when the first `STATUS_CHAR` packet arrives after calibration.
+`LoadingOverlay` (defined in `main_window.py`) is a full-window semi-transparent overlay. It shows "Conectando..." on startup, "Reconectando..." on disconnect, and "Calibrando..." while calibration is in progress.
 
 ### BLE reconnection
 
@@ -78,7 +78,8 @@ Hardware (BLE) ──notify──► BleConnection ──pyqtSignal──► Mai
 
 - No exception handling, no defensive fallbacks (except the bare `except` in `BleConnection.connect` required for reconnect loop)
 - Slots doing BLE writes must be decorated with `@asyncSlot`
-- `signalNotes` is connected to `_on_notes_changed` **after** `_build_controls_card()` to prevent spurious BLE writes during widget init
+- `signalNotes` is connected to `_on_notes_changed` **after** building the controls card to prevent spurious BLE writes during widget init
+- MIDI bytes are sent directly from the BLE callback thread (not via Qt signal) to avoid event-loop dispatch latency
 
 ### Configuration persistence
 

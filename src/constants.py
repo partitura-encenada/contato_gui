@@ -2,6 +2,7 @@ from enum import Enum
 
 from PyQt6.QtGui import QColor
 
+# UUIDs devem coincidir com platformio/include/config.h
 SECTIONS_CHAR_UUID             = '251beea3-1c81-454f-a9dd-8561ec692ded'
 STATUS_CHARACTERISTIC_UUID     = 'f8d968fe-99d7-46c4-a61c-f38093af6ec8'
 ACCEL_SENS_CHARACTERISTIC_UUID = 'c7f2b2e2-1a2b-4c3d-9f0a-123456abcdef'
@@ -19,20 +20,21 @@ class AccelLevel(Enum):
 
 PRIMARY_COLOR = QColor(100, 180, 255)
 PORT_INDEX    = 0
-GYRO_MAX_DEG  = 90
+GYRO_MAX_DEG  = 90  # deve coincidir com GYRO_MAX_DEG no firmware
 
 NOTE_NAMES = ["Dó", "Dó#", "Ré", "Ré#", "Mi", "Fá", "Fá#", "Sol", "Sol#", "Lá", "Lá#", "Si"]
 
 INSTRUMENTS: list[tuple[str, str]] = [
-    ("🎹", "Piano de Cauda"),        ("🎼", "Piano Acústico"),
+    ("🎹", "Piano de Cauda"),         ("🎼", "Piano Acústico"),
     ("🎵", "Piano Elétrico de Cauda"), ("🎶", "Piano Honky-tonk"),
-    ("🎧", "Piano Elétrico 1"),      ("🎛️", "Piano Elétrico 2"),
-    ("🎻", "Cravo"),                 ("🎸", "Clavinet"),
-    ("✨", "Celesta"),               ("🔔", "Glockenspiel"),
-    ("📦", "Caixinha de Música"),    ("🛎️", "Vibrafone"),
-    ("🥁", "Marimba"),              ("🎺", "Xilofone"),
-    ("⛓️", "Sinos Tubulares"),      ("🎶", "Dulcimer"),
+    ("🎧", "Piano Elétrico 1"),        ("🎛️", "Piano Elétrico 2"),
+    ("🎻", "Cravo"),                   ("🎸", "Clavinet"),
+    ("✨", "Celesta"),                 ("🔔", "Glockenspiel"),
+    ("📦", "Caixinha de Música"),      ("🛎️", "Vibrafone"),
+    ("🥁", "Marimba"),                ("🎺", "Xilofone"),
+    ("⛓️", "Sinos Tubulares"),        ("🎶", "Dulcimer"),
 ]
+
 
 def name_to_midi(name: str) -> int:
     for note in sorted(NOTE_NAMES, key=len, reverse=True):
