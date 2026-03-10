@@ -12,6 +12,7 @@ from constants import (
     CALIBRATE_CHAR_UUID,
     BLE_MIDI_CHAR_UUID,
     DIR_CHAR_UUID,
+    TILT_CHAR_UUID,
     AccelLevel,
     NOTE_NAMES,
     name_to_midi,
@@ -19,7 +20,7 @@ from constants import (
 
 
 class BleConnection(QObject):
-    status_received = pyqtSignal(int, bool, int)
+    status_received = pyqtSignal(int, bool, int, int)
     initial_state   = pyqtSignal(dict)
     connected       = pyqtSignal()
     disconnected    = pyqtSignal()
@@ -30,14 +31,14 @@ class BleConnection(QObject):
         self.midi = None
 
     def _on_status(self, _: BleakGATTCharacteristic, data: bytearray):
-        state, touch, gyro_x, accel_x = struct.unpack("<BBhh", data)
-        self.status_received.emit(gyro_x, bool(touch), state)
+        state, touch, gyro_x, accel_x, tilt = struct.unpack("<BBhhh", data)
+        self.status_received.emit(gyro_x, bool(touch), state, tilt)
 
     def _on_midi(self, _: BleakGATTCharacteristic, data: bytearray):
         raw = bytes(data)
         if len(raw) < 3:
             return
-        # chamada direta evita o despacho pelo event loop do Qt
+        # Chamada direta evita o despacho pelo event loop do Qt
         self.midi.send(list(raw[-3:]))
 
     async def connect(self, device) -> None:
@@ -47,7 +48,7 @@ class BleConnection(QObject):
                 print(f"Conectado a {device.name} / {device.address}")
                 self.connected.emit()
 
-                # lê estado inicial antes de ativar notificações
+                # Lê estado inicial antes de ativar notificações
                 state: dict = {}
 
                 section_bytes = await client.read_gatt_char(SECTIONS_CHAR_UUID)
@@ -64,6 +65,9 @@ class BleConnection(QObject):
 
                 dir_bytes = await client.read_gatt_char(DIR_CHAR_UUID)
                 state["direction"] = 1 if dir_bytes[0] != 0 else 0
+
+                tilt_bytes = await client.read_gatt_char(TILT_CHAR_UUID)
+                state["tilt_enabled"] = tilt_bytes[0] != 0
 
                 self.initial_state.emit(state)
 
@@ -92,6 +96,10 @@ class BleConnection(QObject):
         val = bytes([1 if idx == 1 else 0])
         await self._client.write_gatt_char(DIR_CHAR_UUID, val, response=True)
         print(f"Direção → {'Esquerda' if idx == 1 else 'Direita'}")
+
+    async def write_tilt_enabled(self, enabled: bool) -> None:
+        await self._client.write_gatt_char(TILT_CHAR_UUID, bytes([1 if enabled else 0]), response=True)
+        print(f"Pitch bend → {'on' if enabled else 'off'}")
 
     async def calibrate(self) -> None:
         await self._client.write_gatt_char(CALIBRATE_CHAR_UUID, bytes([0x01]), response=True)

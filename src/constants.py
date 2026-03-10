@@ -9,6 +9,7 @@ ACCEL_SENS_CHARACTERISTIC_UUID = 'c7f2b2e2-1a2b-4c3d-9f0a-123456abcdef'
 CALIBRATE_CHAR_UUID            = 'b4d0c9f8-3b9a-4a4e-93f2-2a8c9f5ee7a2'
 BLE_MIDI_CHAR_UUID             = '7772e5db-3868-4112-a1a9-f2669d106bf3'
 DIR_CHAR_UUID                  = 'a1b2c3d4-0001-4b33-a751-6ce34ec4c701'
+TILT_CHAR_UUID                 = 'd2e3f4a5-0002-4b33-a751-6ce34ec4c702'
 BLE_MIDI_SERVICE_UUID          = '03b80e5a-ede8-4b33-a751-6ce34ec4c700'
 
 
