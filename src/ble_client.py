@@ -27,7 +27,6 @@ from constants import (
 
 class BleConnection(QObject):
     status_received = pyqtSignal(int, bool, int)   # (gyro_x, touch, state)
-    midi_received   = pyqtSignal(list)         # mensagem MIDI bruta de 3 bytes
     initial_state   = pyqtSignal(dict)         # estado inicial lido do hardware
     connected       = pyqtSignal()
     disconnected    = pyqtSignal()
@@ -35,6 +34,7 @@ class BleConnection(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._client: BleakClient | None = None
+        self.midi = None
 
     # ── Callbacks de notificação BLE ──────────────────────────────────────────
 
@@ -46,7 +46,7 @@ class BleConnection(QObject):
         raw = bytes(data)
         if len(raw) < 3:
             return
-        self.midi_received.emit(list(raw[-3:]))
+        self.midi.send(list(raw[-3:]))
 
     # ── Loop de conexão com reconexão automática ───────────────────────────────
 
