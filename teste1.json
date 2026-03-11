@@ -1,0 +1,16 @@
+{
+  "sections": 4,
+  "instrument": 4,
+  "notes": [
+    "F\u00e1 5",
+    "Mi 5",
+    "R\u00e9 5",
+    "D\u00f3 5"
+  ],
+  "midi_port_index": 0,
+  "midi_channel": 1,
+  "legato_enabled": false,
+  "tilt_enabled": false,
+  "direction": 0,
+  "accel_level": "Suave"
+}
