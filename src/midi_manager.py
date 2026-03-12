@@ -7,7 +7,7 @@ class MidiManager:
         self._out   = rtmidi.MidiOut()
         self._ports: list[str] = self._out.get_ports()
         self._out.open_port(port_index)
-        print(f"MIDI -> [{port_index}] {self._ports[port_index]}")
+        print(f"MIDI → [{port_index}] {self._ports[port_index]}")
 
     @property
     def ports(self) -> list[str]:
