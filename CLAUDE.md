@@ -102,6 +102,18 @@ Multiple `BleConnection` + `MidiManager` + `MainWindow` instances run concurrent
 - MIDI bytes are sent directly from the BLE callback thread (not via Qt signal) to avoid event-loop dispatch latency
 - `dlg.open()` + `await future` pattern must be used for any dialog shown while BLE tasks are running
 
+### Accessibility
+
+The app targets full screen reader support (Narrator / NVDA on Windows):
+
+- Every interactive widget has `setAccessibleName(...)` set with a descriptive Portuguese string.
+- Note combo boxes use dynamic names via `currentIndexChanged`: `"Nota {n}: {note}"` with `#` replaced by ` Sustenido` (e.g. `"Nota 1: Dó Sustenido 3"`).
+- The instrument button name updates on every `setInstrument` call: `"Instrumento: {name}"`.
+- `QTabBar.setTabAccessibleName` labels each device tab and the "+" tab (`"Adicionar dispositivo"`). The "+" tab name is refreshed after every `insertTab` since its index shifts.
+- Close buttons on tabs carry `"Fechar {device_name}"`.
+- A startup `QAccessible.Event.Alert` on `AppWindow` announces a full app description when the window first appears.
+- `_rebuild_tab_order()` in `MainWindow` sets an explicit `QWidget.setTabOrder` chain: instrument button → note combos → number-of-notes spin → direction → sensitivity → pitch bend → legato → MIDI port → MIDI channel. Rebuilt whenever `notas_spin` changes or `_apply_initial_state` runs.
+
 ### Configuration persistence
 
 `config.py` provides `save_setup` / `load_setup` — plain JSON files containing notes, instrument index, MIDI port, and channel. These are user-managed files, not auto-saved.
