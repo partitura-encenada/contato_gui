@@ -11,15 +11,24 @@ from combo_box import ToggleEnterComboBox
 from instrument_dialog import InstrumentSelectorDialog
 
 
+# Cores usadas na renderização do seletor
 _C_TRACK   = QColor(71,  85,  105, 80)
 _C_TICK    = QColor(100, 120, 140)
 _C_ACCENT  = QColor(50,  150, 210)
 _C_DIVIDER = QColor(50,  150, 210, 45)
 
 
+def _nota_acessivel(secao: int, nome: str) -> str:
+    # Formata o nome da nota para leitores de tela, substituindo "#" por "Sustenido"
+    return f"Nota {secao}: {nome.replace('#', ' Sustenido')}"
+
+
 class SeletorCircular(QFrame):
+    # Emite (programa_gm, nome_instrumento) ao trocar instrumento
     signalInstrumentChanged = pyqtSignal(int, str)
+    # Emite lista de nomes de notas ao alterar qualquer seção
     signalNotes             = pyqtSignal(list)
+    # Emite o nome da nota ao mover o giroscópio (pré-visualização)
     signalNotePreview       = pyqtSignal(str)
 
     def __init__(self, sections: int = 6, ticks: int = 30, parent=None):
@@ -27,18 +36,20 @@ class SeletorCircular(QFrame):
         self.setMinimumSize(560, 480)
 
         self.margin     = 15
-        self.offset     = 80
+        self.offset     = 80   # deslocamento horizontal do centro do arco
         self.sections   = sections
         self.ticks      = ticks
         self.tick_long  = 14
         self.tick_short = 7
         self.combos: list[ToggleEnterComboBox] = []
 
+        # Estado recebido via BLE (~50 Hz)
         self.gyro         = 0
         self.touch        = False
         self.tilt         = 0
         self.tilt_enabled = False
 
+        # Lista completa de notas disponíveis para os combos (Dó 1 … Si 5)
         self._all_notes = [
             f"{note} {octave}"
             for octave in range(1, 6)
@@ -48,6 +59,7 @@ class SeletorCircular(QFrame):
         self.instruments = INSTRUMENTS
         self.current_instrument_index = 0
 
+        # Botão central circular — abre o seletor de instrumento
         self.center_button = QPushButton("♪", self)
         self.center_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.center_button.setFixedSize(90, 90)
@@ -55,7 +67,15 @@ class SeletorCircular(QFrame):
         self.center_button.setAccessibleName(f"Instrumento: {self.instruments[0][0]}")
         self.center_button.clicked.connect(self._show_instrument_selector)
 
+        # Forma da seta criada uma vez — reutilizada no paintEvent (~50 Hz) para evitar
+        # alocações repetidas. Aponta para a direita (+x); a rotação é aplicada no painter.
+        self._arrow_path = QPainterPath()
+        self._arrow_path.moveTo( 0, -9); self._arrow_path.lineTo(9,  0); self._arrow_path.lineTo(0,  9)
+        self._arrow_path.lineTo(-1,  4); self._arrow_path.lineTo(4,  0); self._arrow_path.lineTo(-1, -4)
+        self._arrow_path.closeSubpath()
+
     def setSections(self, count: int) -> None:
+        # Recria os combos preservando as notas existentes; preenche com "Dó 3" se houver novas seções
         count     = int(count)
         old_notes = [c.currentText() for c in self.combos]
 
@@ -75,16 +95,18 @@ class SeletorCircular(QFrame):
             combo.blockSignals(True)
             combo.setCurrentText(note)
             combo.blockSignals(False)
-            combo.setAccessibleName(f"Nota {i + 1}: {note.replace('#', ' Sustenido')}")
+            # Nome acessível inicial; atualizado ao trocar a nota
+            combo.setAccessibleName(_nota_acessivel(i + 1, note))
             combo.currentIndexChanged.connect(
                 lambda _: self.signalNotes.emit([c.currentText() for c in self.combos])
             )
             combo.currentIndexChanged.connect(
                 lambda _, c=combo: self.signalNotePreview.emit(c.currentText())
             )
+            # Atualiza o nome acessível para que leitores de tela anunciem a nova nota
             combo.currentIndexChanged.connect(
                 lambda _, c=combo, n=i + 1: c.setAccessibleName(
-                    f"Nota {n}: {c.currentText().replace('#', ' Sustenido')}"
+                    _nota_acessivel(n, c.currentText())
                 )
             )
             combo.show()
@@ -92,6 +114,7 @@ class SeletorCircular(QFrame):
 
         self.signalNotes.emit([c.currentText() for c in self.combos])
 
+        # Reposiciona os combos e o botão central conforme o novo tamanho do widget
         w, h   = self.width(), self.height()
         cx, cy = w / 2 - self.offset, h / 2
         r      = min((h / 2) - self.margin, (w - cx) - self.margin)
@@ -110,6 +133,7 @@ class SeletorCircular(QFrame):
         self.update()
 
     def setInstrument(self, index: int) -> None:
+        # Atualiza o instrumento selecionado e emite o número de programa GM correspondente
         self.current_instrument_index = index
         name, program = self.instruments[index]
         self.center_button.setAccessibleName(f"Instrumento: {name}")
@@ -123,17 +147,14 @@ class SeletorCircular(QFrame):
         dlg.exec()
 
     def _draw_arrow(self, painter, px, py, angle, opacity=1.0) -> None:
-        path = QPainterPath()
-        path.moveTo( 0, -9); path.lineTo(9,  0); path.lineTo(0,  9)
-        path.lineTo(-1,  4); path.lineTo(4,  0); path.lineTo(-1, -4)
-        path.closeSubpath()
+        # Desenha a seta indicadora em (px, py) rotacionada para o ângulo dado (radianos)
         painter.save()
         painter.setOpacity(opacity)
         painter.translate(px, py)
         painter.rotate(math.degrees(angle))
         painter.setPen(QPen(_C_ACCENT, 2))
         painter.setBrush(_C_ACCENT)
-        painter.drawPath(path)
+        painter.drawPath(self._arrow_path)
         painter.restore()
 
     def paintEvent(self, _):
@@ -149,6 +170,7 @@ class SeletorCircular(QFrame):
         selected_section = int(((self.gyro * math.pi / -180) + math.pi / 2) / (math.pi / self.sections))
         start_ang, end_ang = -math.pi / 2, math.pi / 2
 
+        # Arco externo e interno do seletor
         arc_rect = QRectF(cx - r, cy - r, 2 * r, 2 * r)
         painter.setPen(QPen(_C_TRACK, 1.5))
         painter.drawArc(arc_rect, 90 * 16, -180 * 16)
@@ -158,6 +180,7 @@ class SeletorCircular(QFrame):
         painter.setPen(QPen(_C_TRACK, 1))
         painter.drawArc(inner_rect, 90 * 16, -180 * 16)
 
+        # Marcações (ticks) ao longo do arco; a seta substitui o tick da posição atual
         for i in range(self.ticks + 1):
             t      = start_ang + (end_ang - start_ang) * (i / self.ticks)
             ox, oy = cx + r * math.cos(t), cy + r * math.sin(t)
@@ -165,6 +188,7 @@ class SeletorCircular(QFrame):
             ix, iy = cx + (r - tl) * math.cos(t), cy + (r - tl) * math.sin(t)
 
             if i == selected_tick:
+                # Desenha a seta indicadora na borda externa do arco
                 self._draw_arrow(painter, cx + (r + 12) * math.cos(t),
                                            cy + (r + 12) * math.sin(t), t)
                 continue
@@ -187,12 +211,14 @@ class SeletorCircular(QFrame):
             painter.setPen(pen)
             painter.drawLine(QPointF(ix, iy), QPointF(ox, oy))
 
+        # Rótulo de 0° na extremidade direita do arco
         painter.setPen(QColor(100, 116, 139, 180))
         f = painter.font()
         f.setPointSize(8)
         painter.setFont(f)
         painter.drawText(int(cx + r + 30), int(cy + 4), "0°")
 
+        # Divisórias entre seções
         for i in range(self.sections + 1):
             t      = start_ang + section_angle * i
             x1, y1 = cx + r * 0.3 * math.cos(t), cy + r * 0.3 * math.sin(t)
@@ -206,6 +232,7 @@ class SeletorCircular(QFrame):
             painter.setPen(pen)
             painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
 
+        # Seta fantasma do pitch bend (inclinação do antebraço), com opacidade reduzida
         if self.tilt_enabled:
             gyro_angle  = self.gyro * math.pi / -180
             tilt_offset = -(self.tilt / 90.0) * (30 * math.pi / 180)

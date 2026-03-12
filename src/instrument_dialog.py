@@ -5,7 +5,9 @@ from PyQt6.QtWidgets import QDialog, QGridLayout, QPushButton
 from PyQt6.QtGui import QIcon
 
 
+# Diálogo modal com grade 4×4 de botões para seleção de instrumento GM
 class InstrumentSelectorDialog(QDialog):
+    # Emite o índice (posição na lista INSTRUMENTS) do instrumento escolhido
     instrumentSelected = pyqtSignal(int)
 
     def __init__(self, instruments: list[tuple[str, int]], current_index: int, parent=None):
