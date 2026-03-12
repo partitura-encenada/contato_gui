@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QWidget, QDialog, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QListWidget, QListWidgetItem, QTabWidget, QTabBar,
 )
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QAccessible, QAccessibleEvent
 from qasync import asyncSlot
 
 from ble_client import BleConnection
@@ -200,5 +200,13 @@ async def main_async(app) -> None:
     window.setFixedSize(window.size())
     screen = app.primaryScreen().availableGeometry()
     window.move((screen.width() - window.width()) // 2, screen.top())
+
+    window.setAccessibleName(
+        "Contato GUI. Instrumento MIDI gestual via Bluetooth. "
+        "Use Tab para navegar pelos controles. "
+        "As notas musicais ficam no início da navegação, seguidas das configurações. "
+        "Aguardando conexão com o dispositivo Contato."
+    )
+    QAccessible.updateAccessibility(QAccessibleEvent(window, QAccessible.Event.Alert))
 
     await app_close_event.wait()
