@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QWidget, QDialog, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QListWidget, QListWidgetItem, QTabWidget, QTabBar,
 )
-from PyQt6.QtGui import QIcon, QAccessible, QAccessibleEvent
+from PyQt6.QtGui import QIcon
 from qasync import asyncSlot
 
 from ble_client import BleConnection
@@ -90,7 +90,6 @@ class AppWindow(QWidget):
 
         # Aba "+" permanente — sempre posicionada como a última aba
         self.tabs.addTab(QWidget(), "+")
-        self.tabs.tabBar().setTabAccessibleName(0, "Adicionar dispositivo")
 
     @property
     def _plus_idx(self) -> int:
@@ -103,7 +102,6 @@ class AppWindow(QWidget):
         idx  = self._plus_idx  # inserir antes do "+"
         label = device.name or device.address
         self.tabs.insertTab(idx, page, label)
-        self.tabs.tabBar().setTabAccessibleName(idx, label)
         self.tabs.setCurrentIndex(idx)
 
         close_btn = QPushButton("×")
@@ -116,8 +114,6 @@ class AppWindow(QWidget):
         )
         close_btn.clicked.connect(lambda: self._close_tab(self.tabs.indexOf(page)))
         self.tabs.tabBar().setTabButton(idx, QTabBar.ButtonPosition.RightSide, close_btn)
-        # Atualiza o nome acessível da aba "+" (índice pode ter mudado)
-        self.tabs.tabBar().setTabAccessibleName(self._plus_idx, "Adicionar dispositivo")
 
     def _on_tab_bar_clicked(self, index: int) -> None:
         if index == self._plus_idx and not self._picking:
@@ -156,11 +152,21 @@ class AppWindow(QWidget):
             self.close()
 
     def closeEvent(self, event) -> None:
+        event.ignore()
+        asyncio.ensure_future(self._async_close())
+
+    async def _async_close(self) -> None:
+        stops = []
         while self.tabs.count() > 1:
-            self._cleanup_page(self.tabs.widget(0))
+            page = self.tabs.widget(0)
+            stops.append(page.ble.stop())
+            for ch in range(16):
+                page.midi.all_notes_off(ch)
+            page.midi.close()
+            page.deleteLater()
             self.tabs.removeTab(0)
+        await asyncio.gather(*stops)
         self.app.quit()
-        super().closeEvent(event)
 
 
 async def main_async(app) -> None:
@@ -214,6 +220,5 @@ async def main_async(app) -> None:
         "As notas musicais ficam no início da navegação, seguidas das configurações. "
         "Aguardando conexão com o dispositivo Contato."
     )
-    QAccessible.updateAccessibility(QAccessibleEvent(window, QAccessible.Event.Alert))
 
     await app_close_event.wait()
