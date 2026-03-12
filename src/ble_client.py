@@ -30,6 +30,7 @@ class BleConnection(QObject):
         super().__init__(parent)
         self._client: BleakClient | None = None
         self.midi = None
+        self._running = True
 
     def _on_status(self, _: BleakGATTCharacteristic, data: bytearray):
         state, touch, gyro_x, accel_x, tilt = struct.unpack("<BBhhh", data)
@@ -43,7 +44,7 @@ class BleConnection(QObject):
         self.midi.send(list(raw[-3:]))
 
     async def connect(self, device) -> None:
-        while True:
+        while self._running:
             async with BleakClient(device) as client:
                 self._client = client
                 print(f"Conectado a {device.name} / {device.address}")
@@ -78,13 +79,20 @@ class BleConnection(QObject):
                 await client.start_notify(BLE_MIDI_CHAR_UUID, self._on_midi)
                 await client.start_notify(STATUS_CHARACTERISTIC_UUID, self._on_status)
 
-                while client.is_connected:
+                while self._running and client.is_connected:
                     await asyncio.sleep(0.5)
 
             self._client = None
+            if not self._running:
+                break
             self.disconnected.emit()
             print("Desconectado. Tentando reconectar em 3s...")
             await asyncio.sleep(3)
+
+    async def stop(self) -> None:
+        self._running = False
+        if self._client is not None and self._client.is_connected:
+            await self._client.disconnect()
 
     async def write_sections(self, notes_list: list) -> None:
         midi_bytes = bytes([name_to_midi(n) for n in notes_list])

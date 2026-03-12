@@ -10,6 +10,7 @@ Aplicação desktop para controle gestual de instrumentos MIDI via Bluetooth Low
 ## Funcionalidades
 
 - Conexão BLE automática ao dispositivo Contato
+- **Múltiplos dispositivos simultâneos**, cada um em sua própria aba
 - Seletor circular interativo de notas com visualização em tempo real da posição do giroscópio
 - Suporte a 1–8 seções de notas configuráveis individualmente
 - Seleção de instrumento via Program Change MIDI (16 instrumentos GM)
