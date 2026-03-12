@@ -26,6 +26,8 @@ GYRO_MAX_DEG  = 90  # deve coincidir com GYRO_MAX_DEG no firmware
 
 NOTE_NAMES = ["Dó", "Dó#", "Ré", "Ré#", "Mi", "Fá", "Fá#", "Sol", "Sol#", "Lá", "Lá#", "Si"]
 
+# Instrumentos contínuos do GM selecionados para uso com o Contato.
+# Cada entrada: (nome, número_de_programa_GM_0_indexado)
 INSTRUMENTS: list[tuple[str, int]] = [
     ("Flauta",       73),  ("Oboé",         68),
     ("Clarinete",    71),  ("Trompa",        60),
@@ -34,10 +36,11 @@ INSTRUMENTS: list[tuple[str, int]] = [
     ("Violoncelo",   42),  ("Contrabaixo",   43),
     ("Cordas",       48),  ("Coro",          52),
     ("Voz",          54),  ("Órgão",         19),
-    ("Pad Quente",   89),  ("Pad Halo",      94),
+    ("Pad",   89),  ("Pad Halo",      94),
 ]
 
 
+# Pré-ordenado por comprimento decrescente para evitar match parcial em name_to_midi
 _NOTE_NAMES_SORTED = sorted(NOTE_NAMES, key=len, reverse=True)
 
 

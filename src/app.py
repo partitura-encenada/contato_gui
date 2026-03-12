@@ -88,7 +88,7 @@ class AppWindow(QWidget):
         self.tabs.currentChanged.connect(self._on_current_changed)
         layout.addWidget(self.tabs)
 
-        # Permanent "+" tab — always the last tab
+        # Aba "+" permanente — sempre posicionada como a última aba
         self.tabs.addTab(QWidget(), "+")
 
     @property
@@ -99,7 +99,7 @@ class AppWindow(QWidget):
         ble  = BleConnection()
         midi = MidiManager(PORT_INDEX)
         page = MainWindow(ble=ble, midi=midi, device=device)
-        idx  = self._plus_idx  # insert before "+"
+        idx  = self._plus_idx  # inserir antes do "+"
         self.tabs.insertTab(idx, page, device.name or device.address)
         self.tabs.setCurrentIndex(idx)
 
@@ -146,7 +146,7 @@ class AppWindow(QWidget):
     def _close_tab(self, index: int) -> None:
         self._cleanup_page(self.tabs.widget(index))
         self.tabs.removeTab(index)
-        if self.tabs.count() == 1:  # only "+" remains
+        if self.tabs.count() == 1:  # só a aba "+" permanece
             self.close()
 
     def closeEvent(self, event) -> None:
@@ -201,6 +201,7 @@ async def main_async(app) -> None:
     screen = app.primaryScreen().availableGeometry()
     window.move((screen.width() - window.width()) // 2, screen.top())
 
+    # Anuncia uma descrição do app para leitores de tela (Narrator/NVDA) ao iniciar
     window.setAccessibleName(
         "Contato GUI. Instrumento MIDI gestual via Bluetooth. "
         "Use Tab para navegar pelos controles. "
