@@ -106,9 +106,6 @@ class MainWindow(QWidget):
         outer.setContentsMargins(20, 14, 20, 16)
         outer.setSpacing(0)
 
-        def muted(text: str) -> QLabel:
-            return QLabel(text)
-
         grid = QGridLayout()
         grid.setHorizontalSpacing(14)
         grid.setVerticalSpacing(8)
@@ -120,14 +117,14 @@ class MainWindow(QWidget):
         self.notas_spin.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.notas_spin.valueChanged.connect(self.selector.setSections)
         self.notas_spin.setValue(6)
-        grid.addWidget(muted("Notas"), 0, 0)
+        grid.addWidget(QLabel("Notas"), 0, 0)
         grid.addWidget(self.notas_spin, 0, 1)
 
         self.dir_combo = QComboBox()
         self.dir_combo.addItems(["Esquerda", "Direita"])
         self.dir_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.dir_combo.currentIndexChanged.connect(self._on_direction_changed)
-        grid.addWidget(muted("Direção"), 1, 0)
+        grid.addWidget(QLabel("Direção"), 1, 0)
         grid.addWidget(self.dir_combo, 1, 1)
 
         self.accel_combo = QComboBox()
@@ -135,7 +132,7 @@ class MainWindow(QWidget):
             self.accel_combo.addItem(level.name.title(), level)
         self.accel_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.accel_combo.currentIndexChanged.connect(self._on_accel_changed)
-        grid.addWidget(muted("Sensibilidade"), 2, 0)
+        grid.addWidget(QLabel("Sensibilidade"), 2, 0)
         grid.addWidget(self.accel_combo, 2, 1)
 
         self.midi_output_combo = QComboBox()
@@ -151,7 +148,7 @@ class MainWindow(QWidget):
         midi_row.setContentsMargins(0, 0, 0, 0)
         midi_row.setSpacing(8)
         midi_row.addWidget(self.midi_output_combo, stretch=1)
-        midi_row.addWidget(muted("Canal"))
+        midi_row.addWidget(QLabel("Canal"))
         midi_row.addWidget(self.channel_combo)
 
         midi_container = QWidget()
@@ -159,15 +156,15 @@ class MainWindow(QWidget):
 
         self.tilt_check = QCheckBox()
         self.tilt_check.stateChanged.connect(self._on_tilt_changed)
-        grid.addWidget(muted("Pitch bend"), 3, 0)
+        grid.addWidget(QLabel("Pitch bend"), 3, 0)
         grid.addWidget(self.tilt_check, 3, 1, Qt.AlignmentFlag.AlignRight)
 
         self.legato_check = QCheckBox()
         self.legato_check.stateChanged.connect(self._on_legato_changed)
-        grid.addWidget(muted("Legato"), 4, 0)
+        grid.addWidget(QLabel("Legato"), 4, 0)
         grid.addWidget(self.legato_check, 4, 1, Qt.AlignmentFlag.AlignRight)
 
-        grid.addWidget(muted("Saída MIDI"), 5, 0)
+        grid.addWidget(QLabel("Saída MIDI"), 5, 0)
         grid.addWidget(midi_container, 5, 1)
         outer.addLayout(grid)
         layout.addWidget(card)
