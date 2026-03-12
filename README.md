@@ -21,6 +21,15 @@ Aplicação desktop para controle gestual de instrumentos MIDI via Bluetooth Low
 - Seleção de porta MIDI de saída e canal (1–16)
 - Salvar e carregar configurações em arquivo JSON
 
+## Acessibilidade
+
+- Compatível com leitores de tela (Narrator e NVDA)
+- Navegação completa por teclado via Tab e setas
+- Anúncio automático da descrição do app ao iniciar
+- Nomes acessíveis descritivos em todos os controles e abas
+- Notas com sustenido anunciadas por extenso (ex.: "Dó Sustenido 3")
+- Ordem de navegação: notas primeiro, painel de configurações depois
+
 ## Requisitos
 
 - Python 3.10 ou superior

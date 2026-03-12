@@ -21,6 +21,15 @@ Desktop application for gesture-based MIDI instrument control over Bluetooth Low
 - MIDI output port and channel selection (1–16)
 - Save and load setups as JSON files
 
+## Accessibility
+
+- Screen reader support (Narrator and NVDA)
+- Full keyboard navigation via Tab and arrow keys
+- Automatic app description announcement on startup
+- Descriptive accessible names on all controls and tabs
+- Sharp notes announced in full (e.g. "Dó Sustenido 3")
+- Navigation order: notes first, settings panel after
+
 ## Requirements
 
 - Python 3.10 or higher
