@@ -76,12 +76,17 @@ class SeletorCircular(QFrame):
             combo.blockSignals(True)
             combo.setCurrentText(note)
             combo.blockSignals(False)
-            combo.setAccessibleName(f"Seção {i + 1}")
+            combo.setAccessibleName(f"Nota {i + 1}: {note.replace('#', ' Sustenido')}")
             combo.currentIndexChanged.connect(
                 lambda _: self.signalNotes.emit([c.currentText() for c in self.combos])
             )
             combo.currentIndexChanged.connect(
                 lambda _, c=combo: self.signalNotePreview.emit(c.currentText())
+            )
+            combo.currentIndexChanged.connect(
+                lambda _, c=combo, n=i + 1: c.setAccessibleName(
+                    f"Nota {n}: {c.currentText().replace('#', ' Sustenido')}"
+                )
             )
             combo.show()
             self.combos.append(combo)
