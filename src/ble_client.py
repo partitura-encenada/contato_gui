@@ -105,16 +105,15 @@ class BleConnection(QObject):
         print(f"Accel → {level.name} ({level.value})")
 
     async def write_direction(self, idx: int) -> None:
-        val = bytes([1 if idx == 1 else 0])
-        await self._client.write_gatt_char(DIR_CHAR_UUID, val, response=True)
+        await self._client.write_gatt_char(DIR_CHAR_UUID, bytes([int(idx == 1)]), response=True)
         print(f"Direção → {'Esquerda' if idx == 1 else 'Direita'}")
 
     async def write_tilt_enabled(self, enabled: bool) -> None:
-        await self._client.write_gatt_char(TILT_CHAR_UUID, bytes([1 if enabled else 0]), response=True)
+        await self._client.write_gatt_char(TILT_CHAR_UUID, bytes([int(enabled)]), response=True)
         print(f"Pitch bend → {'on' if enabled else 'off'}")
 
     async def write_legato_enabled(self, enabled: bool) -> None:
-        await self._client.write_gatt_char(LEGATO_CHAR_UUID, bytes([1 if enabled else 0]), response=True)
+        await self._client.write_gatt_char(LEGATO_CHAR_UUID, bytes([int(enabled)]), response=True)
         print(f"Legato → {'on' if enabled else 'off'}")
 
     async def calibrate(self) -> None:

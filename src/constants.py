@@ -38,8 +38,11 @@ INSTRUMENTS: list[tuple[str, str]] = [
 ]
 
 
+_NOTE_NAMES_SORTED = sorted(NOTE_NAMES, key=len, reverse=True)
+
+
 def name_to_midi(name: str) -> int:
-    for note in sorted(NOTE_NAMES, key=len, reverse=True):
+    for note in _NOTE_NAMES_SORTED:
         if name.startswith(note):
             octave = int(name[len(note):].strip())
             return (octave + 1) * 12 + NOTE_NAMES.index(note)
