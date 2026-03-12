@@ -53,7 +53,7 @@ class SeletorCircular(QFrame):
         self.center_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.center_button.setFixedSize(90, 90)
         self.center_button.setStyleSheet("QPushButton { border-radius: 45px; font-size: 32px; }")
-        self.center_button.setAccessibleName("Instrumento")
+        self.center_button.setAccessibleName(f"Instrumento: {self.instruments[0][1]}")
         self.center_button.clicked.connect(self._show_instrument_selector)
 
     def setSections(self, count: int) -> None:
@@ -114,6 +114,7 @@ class SeletorCircular(QFrame):
         self.current_instrument_index = index
         icon, name = self.instruments[index]
         self.center_button.setText(icon)
+        self.center_button.setAccessibleName(f"Instrumento: {name}")
         self.signalInstrumentChanged.emit(index, name)
 
     def _show_instrument_selector(self) -> None:
