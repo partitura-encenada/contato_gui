@@ -81,6 +81,11 @@ class MainWindow(QWidget):
             b.setIconSize(QSize(16, 16))
             b.setFixedHeight(24)
 
+        save_btn.setAccessibleName("Salvar configuração")
+        load_btn.setAccessibleName("Abrir configuração")
+        self.cal_btn.setAccessibleName("Calibrar")
+        about_btn.setAccessibleName("Sobre")
+
         save_btn.clicked.connect(lambda: save_setup(self, self))
         load_btn.clicked.connect(lambda: load_setup(self, self))
         self.cal_btn.clicked.connect(self._on_calibrate)
@@ -115,7 +120,9 @@ class MainWindow(QWidget):
         self.notas_spin = QSpinBox()
         self.notas_spin.setRange(1, 8)
         self.notas_spin.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.notas_spin.setAccessibleName("Número de seções")
         self.notas_spin.valueChanged.connect(self.selector.setSections)
+        self.notas_spin.valueChanged.connect(lambda _: self._rebuild_tab_order())
         self.notas_spin.setValue(6)
         grid.addWidget(QLabel("Notas"), 0, 0)
         grid.addWidget(self.notas_spin, 0, 1)
@@ -123,6 +130,7 @@ class MainWindow(QWidget):
         self.dir_combo = QComboBox()
         self.dir_combo.addItems(["Esquerda", "Direita"])
         self.dir_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.dir_combo.setAccessibleName("Direção")
         self.dir_combo.currentIndexChanged.connect(self._on_direction_changed)
         grid.addWidget(QLabel("Direção"), 1, 0)
         grid.addWidget(self.dir_combo, 1, 1)
@@ -131,6 +139,7 @@ class MainWindow(QWidget):
         for level in AccelLevel:
             self.accel_combo.addItem(level.name.title(), level)
         self.accel_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.accel_combo.setAccessibleName("Sensibilidade")
         self.accel_combo.currentIndexChanged.connect(self._on_accel_changed)
         grid.addWidget(QLabel("Sensibilidade"), 2, 0)
         grid.addWidget(self.accel_combo, 2, 1)
@@ -138,11 +147,13 @@ class MainWindow(QWidget):
         self.midi_output_combo = QComboBox()
         self.midi_output_combo.addItems(self.midi.ports)
         self.midi_output_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.midi_output_combo.setAccessibleName("Saída MIDI")
         self.midi_output_combo.currentIndexChanged.connect(self.midi.open_port)
 
         self.channel_combo = QComboBox()
         self.channel_combo.addItems([str(i) for i in range(1, 17)])
         self.channel_combo.setFixedWidth(64)
+        self.channel_combo.setAccessibleName("Canal MIDI")
 
         midi_row = QHBoxLayout()
         midi_row.setContentsMargins(0, 0, 0, 0)
@@ -155,11 +166,13 @@ class MainWindow(QWidget):
         midi_container.setLayout(midi_row)
 
         self.tilt_check = QCheckBox()
+        self.tilt_check.setAccessibleName("Pitch bend")
         self.tilt_check.stateChanged.connect(self._on_tilt_changed)
         grid.addWidget(QLabel("Pitch bend"), 3, 0)
         grid.addWidget(self.tilt_check, 3, 1, Qt.AlignmentFlag.AlignRight)
 
         self.legato_check = QCheckBox()
+        self.legato_check.setAccessibleName("Legato")
         self.legato_check.stateChanged.connect(self._on_legato_changed)
         grid.addWidget(QLabel("Legato"), 4, 0)
         grid.addWidget(self.legato_check, 4, 1, Qt.AlignmentFlag.AlignRight)
@@ -195,12 +208,28 @@ class MainWindow(QWidget):
         self._calibrating     = False
 
         self._set_controls_enabled(False)
+        self._rebuild_tab_order()
 
         if device:
             asyncio.create_task(self.ble.connect(device))
 
     def _set_status(self, msg: str) -> None:
         self._status_label.setText(msg)
+
+    def _rebuild_tab_order(self) -> None:
+        chain = [
+            self.selector.center_button,
+            *self.selector.combos,
+            self.notas_spin,
+            self.dir_combo,
+            self.accel_combo,
+            self.tilt_check,
+            self.legato_check,
+            self.midi_output_combo,
+            self.channel_combo,
+        ]
+        for a, b in zip(chain, chain[1:]):
+            QWidget.setTabOrder(a, b)
 
     def _on_ble_status(self, gyro: int, touch: bool, state: int, tilt: int) -> None:
         if state == 1:
@@ -284,6 +313,7 @@ class MainWindow(QWidget):
             self.legato_check.blockSignals(False)
 
         self._set_controls_enabled(True)
+        self._rebuild_tab_order()
         self.overlay.hide_overlay()
 
     @asyncSlot(int, str)
