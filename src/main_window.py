@@ -51,12 +51,9 @@ class LoadingOverlay(QWidget):
 class MainWindow(QWidget):
     def __init__(self, ble: BleConnection, midi: MidiManager, device=None):
         super().__init__()
-        self.ble  = ble
-        self.midi = midi
-
-        self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), "assets", "icon.ico")))
-        self.setWindowTitle("Contato GUI")
-        self.setFixedWidth(640)
+        self.ble    = ble
+        self.midi   = midi
+        self.device = device
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

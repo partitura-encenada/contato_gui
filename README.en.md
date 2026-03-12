@@ -10,6 +10,7 @@ Desktop application for gesture-based MIDI instrument control over Bluetooth Low
 ## Features
 
 - Automatic BLE connection to the Contato device
+- **Multiple simultaneous devices**, each in its own tab
 - Interactive circular note selector with real-time gyroscope position display
 - Support for 1–8 individually configurable note sections
 - Instrument selection via MIDI Program Change (16 GM instruments)

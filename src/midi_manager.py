@@ -36,3 +36,6 @@ class MidiManager:
             self.send,
             args=([0x80 | (channel & 0x0F), note & 0x7F, 0],),
         ).start()
+
+    def close(self) -> None:
+        self._out.close_port()
