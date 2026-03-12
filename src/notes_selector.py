@@ -3,7 +3,7 @@ import math
 from PyQt6.QtCore import Qt, QPointF, QRectF, pyqtSignal
 from PyQt6.QtWidgets import QFrame, QPushButton
 from PyQt6.QtGui import (
-    QPainter, QPen, QColor, QPixmap, QPainterPath, QTransform,
+    QPainter, QPen, QColor, QPainterPath,
 )
 
 from constants import NOTE_NAMES, INSTRUMENTS
@@ -53,22 +53,8 @@ class SeletorCircular(QFrame):
         self.center_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.center_button.setFixedSize(90, 90)
         self.center_button.setStyleSheet("QPushButton { border-radius: 45px; font-size: 32px; }")
+        self.center_button.setAccessibleName("Instrumento")
         self.center_button.clicked.connect(self._show_instrument_selector)
-
-        # ícone de seta desenhado em pixmap para rotação suave no paintEvent
-        pix = QPixmap(22, 22)
-        pix.fill(Qt.GlobalColor.transparent)
-        p = QPainter(pix)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        path = QPainterPath()
-        path.moveTo(11, 2);  path.lineTo(20, 11); path.lineTo(11, 20)
-        path.lineTo(10, 15); path.lineTo(15, 11); path.lineTo(10,  7)
-        path.closeSubpath()
-        p.setPen(QPen(_C_ACCENT, 2))
-        p.setBrush(_C_ACCENT)
-        p.drawPath(path)
-        p.end()
-        self._hand_icon = pix
 
     def setSections(self, count: int) -> None:
         count     = int(count)
@@ -84,12 +70,13 @@ class SeletorCircular(QFrame):
             c.deleteLater()
         self.combos = []
 
-        for note in new_notes:
+        for i, note in enumerate(new_notes):
             combo = ToggleEnterComboBox(self)
             combo.addItems(self._all_notes)
             combo.blockSignals(True)
             combo.setCurrentText(note)
             combo.blockSignals(False)
+            combo.setAccessibleName(f"Seção {i + 1}")
             combo.currentIndexChanged.connect(
                 lambda _: self.signalNotes.emit([c.currentText() for c in self.combos])
             )
@@ -131,6 +118,20 @@ class SeletorCircular(QFrame):
         dlg.instrumentSelected.connect(self.setInstrument)
         dlg.exec()
 
+    def _draw_arrow(self, painter, px, py, angle, opacity=1.0) -> None:
+        path = QPainterPath()
+        path.moveTo( 0, -9); path.lineTo(9,  0); path.lineTo(0,  9)
+        path.lineTo(-1,  4); path.lineTo(4,  0); path.lineTo(-1, -4)
+        path.closeSubpath()
+        painter.save()
+        painter.setOpacity(opacity)
+        painter.translate(px, py)
+        painter.rotate(math.degrees(angle))
+        painter.setPen(QPen(_C_ACCENT, 2))
+        painter.setBrush(_C_ACCENT)
+        painter.drawPath(path)
+        painter.restore()
+
     def paintEvent(self, _):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -160,14 +161,8 @@ class SeletorCircular(QFrame):
             ix, iy = cx + (r - tl) * math.cos(t), cy + (r - tl) * math.sin(t)
 
             if i == selected_tick:
-                rotated = self._hand_icon.transformed(
-                    QTransform().rotate(math.degrees(t)),
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                icon_r = r + 12
-                px = cx + icon_r * math.cos(t) - rotated.width()  / 2
-                py = cy + icon_r * math.sin(t) - rotated.height() / 2
-                painter.drawPixmap(int(px), int(py), rotated)
+                self._draw_arrow(painter, cx + (r + 12) * math.cos(t),
+                                           cy + (r + 12) * math.sin(t), t)
                 continue
 
             in_section = (
@@ -208,16 +203,9 @@ class SeletorCircular(QFrame):
             painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
 
         if self.tilt_enabled:
-            gyro_angle   = self.gyro * math.pi / -180
-            tilt_offset  = -(self.tilt / 90.0) * (30 * math.pi / 180)
-            ghost_angle  = max(-math.pi / 2, min(math.pi / 2, gyro_angle + tilt_offset))
-            ghost_rotated = self._hand_icon.transformed(
-                QTransform().rotate(math.degrees(ghost_angle)),
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            icon_r = r + 12
-            px = cx + icon_r * math.cos(ghost_angle) - ghost_rotated.width()  / 2
-            py = cy + icon_r * math.sin(ghost_angle) - ghost_rotated.height() / 2
-            painter.setOpacity(0.3)
-            painter.drawPixmap(int(px), int(py), ghost_rotated)
-            painter.setOpacity(1.0)
+            gyro_angle  = self.gyro * math.pi / -180
+            tilt_offset = -(self.tilt / 90.0) * (30 * math.pi / 180)
+            ghost_angle = max(-math.pi / 2, min(math.pi / 2, gyro_angle + tilt_offset))
+            self._draw_arrow(painter, cx + (r + 12) * math.cos(ghost_angle),
+                                      cy + (r + 12) * math.sin(ghost_angle),
+                                      ghost_angle, opacity=0.3)
