@@ -26,15 +26,15 @@ GYRO_MAX_DEG  = 90  # deve coincidir com GYRO_MAX_DEG no firmware
 
 NOTE_NAMES = ["Dó", "Dó#", "Ré", "Ré#", "Mi", "Fá", "Fá#", "Sol", "Sol#", "Lá", "Lá#", "Si"]
 
-INSTRUMENTS: list[tuple[str, str]] = [
-    ("🎹", "Piano de Cauda"),         ("🎼", "Piano Acústico"),
-    ("🎵", "Piano Elétrico de Cauda"), ("🎶", "Piano Honky-tonk"),
-    ("🎧", "Piano Elétrico 1"),        ("🎛️", "Piano Elétrico 2"),
-    ("🎻", "Cravo"),                   ("🎸", "Clavinet"),
-    ("✨", "Celesta"),                 ("🔔", "Glockenspiel"),
-    ("📦", "Caixinha de Música"),      ("🛎️", "Vibrafone"),
-    ("🥁", "Marimba"),                ("🎺", "Xilofone"),
-    ("⛓️", "Sinos Tubulares"),        ("🎶", "Dulcimer"),
+INSTRUMENTS: list[tuple[str, int]] = [
+    ("Flauta",       73),  ("Oboé",         68),
+    ("Clarinete",    71),  ("Trompa",        60),
+    ("Trompete",     56),  ("Trombone",      57),
+    ("Violino",      40),  ("Viola",         41),
+    ("Violoncelo",   42),  ("Contrabaixo",   43),
+    ("Cordas",       48),  ("Coro",          52),
+    ("Voz",          54),  ("Órgão",         19),
+    ("Pad Quente",   89),  ("Pad Halo",      94),
 ]
 
 

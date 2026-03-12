@@ -318,9 +318,9 @@ class MainWindow(QWidget):
         self.overlay.hide_overlay()
 
     @asyncSlot(int, str)
-    async def _on_instrument_changed(self, index: int, name: str) -> None:
+    async def _on_instrument_changed(self, program: int, name: str) -> None:
         ch = int(self.channel_combo.currentText()) - 1
-        self.midi.program_change(ch, index)
+        self.midi.program_change(ch, program)
 
     def _on_note_preview(self, note_name: str) -> None:
         ch = int(self.channel_combo.currentText()) - 1
