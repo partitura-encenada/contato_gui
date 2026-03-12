@@ -194,6 +194,7 @@ class MainWindow(QWidget):
         # Conectado após a construção dos controles para evitar escrita BLE durante o init
         self.selector.signalNotes.connect(self._on_notes_changed)
 
+        # Overlay semitransparente exibido durante conexão, reconexão e calibração
         self.overlay = LoadingOverlay(self)
         self.overlay.show_overlay("Conectando...")
 
@@ -206,6 +207,7 @@ class MainWindow(QWidget):
         self._last_touch_note = ""
         self._calibrating     = False
 
+        # Reconstrói a ordem de tabulação sempre que o número de seções muda
         self.notas_spin.valueChanged.connect(lambda _: self._rebuild_tab_order())
 
         self._set_controls_enabled(False)
@@ -218,6 +220,8 @@ class MainWindow(QWidget):
         self._status_label.setText(msg)
 
     def _rebuild_tab_order(self) -> None:
+        # Define a ordem de navegação por Tab: notas primeiro, depois configurações.
+        # Reconstruída ao mudar o número de seções pois os combos são recriados.
         chain = [
             self.selector.center_button,
             *self.selector.combos,
