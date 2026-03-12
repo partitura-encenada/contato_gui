@@ -44,7 +44,7 @@ def load_setup(window: QWidget, parent: QWidget | None = None) -> None:
 
     for combo, note in zip(window.selector.combos, data["notes"]):
         combo.setCurrentText(note)
-    window.selector.setInstrument(data["instrument"], None)
+    window.selector.setInstrument(data["instrument"])
     window.midi_output_combo.setCurrentIndex(data["midi_port_index"])
     window.channel_combo.setCurrentText(str(data["midi_channel"]))
 
