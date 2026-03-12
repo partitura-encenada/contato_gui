@@ -122,7 +122,6 @@ class MainWindow(QWidget):
         self.notas_spin.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.notas_spin.setAccessibleName("Número de seções")
         self.notas_spin.valueChanged.connect(self.selector.setSections)
-        self.notas_spin.valueChanged.connect(lambda _: self._rebuild_tab_order())
         self.notas_spin.setValue(6)
         grid.addWidget(QLabel("Notas"), 0, 0)
         grid.addWidget(self.notas_spin, 0, 1)
@@ -206,6 +205,8 @@ class MainWindow(QWidget):
         self._last_touch      = False
         self._last_touch_note = ""
         self._calibrating     = False
+
+        self.notas_spin.valueChanged.connect(lambda _: self._rebuild_tab_order())
 
         self._set_controls_enabled(False)
         self._rebuild_tab_order()
