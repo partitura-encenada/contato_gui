@@ -90,6 +90,7 @@ class AppWindow(QWidget):
 
         # Aba "+" permanente — sempre posicionada como a última aba
         self.tabs.addTab(QWidget(), "+")
+        self.tabs.tabBar().setTabAccessibleName(0, "Adicionar dispositivo")
 
     @property
     def _plus_idx(self) -> int:
@@ -100,11 +101,14 @@ class AppWindow(QWidget):
         midi = MidiManager(PORT_INDEX)
         page = MainWindow(ble=ble, midi=midi, device=device)
         idx  = self._plus_idx  # inserir antes do "+"
-        self.tabs.insertTab(idx, page, device.name or device.address)
+        label = device.name or device.address
+        self.tabs.insertTab(idx, page, label)
+        self.tabs.tabBar().setTabAccessibleName(idx, label)
         self.tabs.setCurrentIndex(idx)
 
         close_btn = QPushButton("×")
         close_btn.setFixedSize(16, 16)
+        close_btn.setAccessibleName(f"Fechar {label}")
         close_btn.setStyleSheet(
             "QPushButton { border: 1px solid #7dbfe8; background: transparent;"
             "              padding: 0; font-size: 12px; }"
@@ -112,6 +116,8 @@ class AppWindow(QWidget):
         )
         close_btn.clicked.connect(lambda: self._close_tab(self.tabs.indexOf(page)))
         self.tabs.tabBar().setTabButton(idx, QTabBar.ButtonPosition.RightSide, close_btn)
+        # Atualiza o nome acessível da aba "+" (índice pode ter mudado)
+        self.tabs.tabBar().setTabAccessibleName(self._plus_idx, "Adicionar dispositivo")
 
     def _on_tab_bar_clicked(self, index: int) -> None:
         if index == self._plus_idx and not self._picking:
