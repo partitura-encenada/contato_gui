@@ -118,19 +118,17 @@ class SeletorCircular(QFrame):
 
         self.update()
 
-    def setInstrument(self, index: int, dialog=None) -> None:
+    def setInstrument(self, index: int) -> None:
         self.current_instrument_index = index
         icon, name = self.instruments[index]
         self.center_button.setText(icon)
         self.signalInstrumentChanged.emit(index, name)
-        if dialog:
-            dialog.accept()
 
     def _show_instrument_selector(self) -> None:
         dlg = InstrumentSelectorDialog(
             self.instruments, self.current_instrument_index, self
         )
-        dlg.instrumentSelected.connect(lambda idx: self.setInstrument(idx, None))
+        dlg.instrumentSelected.connect(self.setInstrument)
         dlg.exec()
 
     def paintEvent(self, _):
