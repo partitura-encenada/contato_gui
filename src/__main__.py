@@ -1,11 +1,22 @@
 import sys
 import asyncio
 
+from PyQt6.QtCore import QObject, QEvent, Qt
+from PyQt6.QtWidgets import QPushButton, QCheckBox
 from qasync import QApplication as QAsyncApplication, QEventLoop
 
 from main_window import MainWindow
 from device_picker_dialog import scan_devices, DevicePickerDialog
 from splash_screen import SplashScreen
+
+
+class _EnterKeyFilter(QObject):
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if isinstance(obj, (QPushButton, QCheckBox)):
+                obj.click()
+                return True
+        return False
 
 
 async def main_async(app) -> None:
@@ -52,8 +63,8 @@ async def main_async(app) -> None:
 
     # Anuncia uma descrição do app para leitores de tela (Narrator/NVDA) ao iniciar
     window.setAccessibleName(
-        "Contato GUI. Instrumento MIDI gestual via Bluetooth. "
-        "Use Tab para navegar pelos controles. "
+        "Contato, o instrumento musical para ser dançado."
+        "Use Tab para navegar pelos controles."
         "As notas musicais ficam no início da navegação, seguidas das configurações. "
         "Aguardando conexão com o dispositivo Contato."
     )
@@ -62,6 +73,7 @@ async def main_async(app) -> None:
 
 if __name__ == "__main__":
     qapp = QAsyncApplication(sys.argv)
+    qapp.installEventFilter(_EnterKeyFilter(qapp))
     loop = QEventLoop(qapp)
     asyncio.set_event_loop(loop)
     with loop:

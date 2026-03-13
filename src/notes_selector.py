@@ -18,9 +18,8 @@ _C_ACCENT  = QColor(50,  150, 210)
 _C_DIVIDER = QColor(50,  150, 210, 45)
 
 
-def _nota_acessivel(secao: int, nome: str) -> str:
-    # Formata o nome da nota para leitores de tela, substituindo "#" por "Sustenido"
-    return f"Nota {secao}: {nome.replace('#', ' Sustenido')}"
+def _nota_acessivel(secao: int, total: int) -> str:
+    return f"Nota {secao} de {total}"
 
 
 class SeletorCircular(QFrame):
@@ -95,19 +94,12 @@ class SeletorCircular(QFrame):
             combo.blockSignals(True)
             combo.setCurrentText(note)
             combo.blockSignals(False)
-            # Nome acessível inicial; atualizado ao trocar a nota
-            combo.setAccessibleName(_nota_acessivel(i + 1, note))
+            combo.setAccessibleName(_nota_acessivel(count - i, count))
             combo.currentIndexChanged.connect(
                 lambda _: self.signalNotes.emit([c.currentText() for c in self.combos])
             )
             combo.currentIndexChanged.connect(
                 lambda _, c=combo: self.signalNotePreview.emit(c.currentText())
-            )
-            # Atualiza o nome acessível para que leitores de tela anunciem a nova nota
-            combo.currentIndexChanged.connect(
-                lambda _, c=combo, n=i + 1: c.setAccessibleName(
-                    _nota_acessivel(n, c.currentText())
-                )
             )
             combo.show()
             self.combos.append(combo)
