@@ -67,32 +67,32 @@ Hardware (BLE) --notify--> BleConnection --pyqtSignal--> MainWindow --> MidiMana
 ```
 
 - `BleConnection` (`ble_client.py`) wraps a `BleakClient` as a `QObject`, emitting `status_received(gyro_x, touch, state, tilt)` and calling `midi.send()` directly from the BLE callback thread (bypassing the Qt signal queue for lower latency).
-- `MainWindow` connects BLE signals and updates the UI.
+- `DeviceTab` connects BLE signals and updates the UI.
 - User configuration changes are sent back via `write_gatt_char` on the corresponding UUIDs.
 
 ### Startup sequence
 
 1. `SplashScreen` shown while `scan_devices()` runs a 3s BLE scan filtered by `BLE_MIDI_SERVICE_UUID`.
 2. `DevicePickerDialog` (modal) lets the user pick a device using `dlg.exec()` (safe here — no tasks running yet).
-3. `AppWindow` is created; `add_device()` creates a `MainWindow` tab and starts `BleConnection.connect()` as an `asyncio.create_task`.
-4. On connection, initial state (sections, sensitivity, direction, tilt, legato) is read inline inside `connect()` and emitted as `initial_state`. `MainWindow._apply_initial_state()` populates the controls, then re-enables them (they start disabled).
-5. The "+" tab in `AppWindow` opens `DevicePickerDialog` via `dlg.open()` + `await future` (non-blocking, avoids re-entrancy) to add more devices.
+3. `MainWindow` is created; `add_device()` creates a `DeviceTab` and starts `BleConnection.connect()` as an `asyncio.create_task`.
+4. On connection, initial state (sections, sensitivity, direction, tilt, legato) is read inline inside `connect()` and emitted as `initial_state`. `DeviceTab._apply_initial_state()` populates the controls, then re-enables them (they start disabled).
+5. The "+" tab in `MainWindow` opens `DevicePickerDialog` via `dlg.open()` + `await future` (non-blocking, avoids re-entrancy) to add more devices.
 
 ### UI structure
 
-`AppWindow` (`app.py`) is the top-level window. It contains a `QTabWidget` where each tab is a `MainWindow` instance. The last tab is always a permanent "+" for adding new devices. The window is fixed-size and opens centered at the top of the primary screen.
+`MainWindow` (`main_window.py`) is the top-level window. It contains a `QTabWidget` where each tab is a `DeviceTab` instance. The last tab is always a permanent "+" for adding new devices. The window is fixed-size and opens centered at the top of the primary screen.
 
 `SeletorCircular` (`notes_selector.py`) is the central custom widget per tab: a semicircular arc that visualises the gyro position and lets the user assign notes to each section.
 
-`LoadingOverlay` (defined in `main_window.py`) is a full-window semi-transparent overlay. It shows "Conectando..." on startup, "Reconectando..." on disconnect, and "Calibrando..." while calibration is in progress.
+`LoadingOverlay` (defined in `device_tab.py`) is a full-window semi-transparent overlay. It shows "Conectando..." on startup, "Reconectando..." on disconnect, and "Calibrando..." while calibration is in progress.
 
 ### BLE reconnection
 
-`BleConnection.connect()` runs a `while self._running` loop: on disconnect or failed connection attempt, it waits 3 seconds and retries. `MainWindow` shows the reconnecting overlay on `disconnected` and hides it on `initial_state`. Calling `BleConnection.stop()` sets `_running = False` and disconnects immediately, breaking the loop — used when a tab is closed.
+`BleConnection.connect()` runs a `while self._running` loop: on disconnect or failed connection attempt, it waits 3 seconds and retries. `DeviceTab` shows the reconnecting overlay on `disconnected` and hides it on `initial_state`. Calling `BleConnection.stop()` sets `_running = False` and disconnects immediately, breaking the loop — used when a tab is closed.
 
 ### Multi-device
 
-Multiple `BleConnection` + `MidiManager` + `MainWindow` instances run concurrently on the same asyncio event loop. This is required on Windows: running two separate processes each subscribing to BLE characteristics with the same UUIDs causes WinRT to stop delivering notifications to the second process.
+Multiple `BleConnection` + `MidiManager` + `DeviceTab` instances run concurrently on the same asyncio event loop. This is required on Windows: running two separate processes each subscribing to BLE characteristics with the same UUIDs causes WinRT to stop delivering notifications to the second process.
 
 ### Coding conventions
 
@@ -111,8 +111,8 @@ The app targets full screen reader support (Narrator / NVDA on Windows):
 - The instrument button name updates on every `setInstrument` call: `"Instrumento: {name}"`.
 - `QTabBar.setTabAccessibleName` labels each device tab and the "+" tab (`"Adicionar dispositivo"`). The "+" tab name is refreshed after every `insertTab` since its index shifts.
 - Close buttons on tabs carry `"Fechar {device_name}"`.
-- A startup `QAccessible.Event.Alert` on `AppWindow` announces a full app description when the window first appears.
-- `_rebuild_tab_order()` in `MainWindow` sets an explicit `QWidget.setTabOrder` chain: instrument button → note combos → number-of-notes spin → direction → sensitivity → pitch bend → legato → MIDI port → MIDI channel. Rebuilt whenever `notas_spin` changes or `_apply_initial_state` runs.
+- A startup `QAccessible.Event.Alert` on `MainWindow` announces a full app description when the window first appears.
+- `_rebuild_tab_order()` in `DeviceTab` sets an explicit `QWidget.setTabOrder` chain: instrument button → note combos → number-of-notes spin → direction → sensitivity → pitch bend → legato → MIDI port → MIDI channel. Rebuilt whenever `notas_spin` changes or `_apply_initial_state` runs.
 
 ### Configuration persistence
 
