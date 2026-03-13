@@ -1,11 +1,8 @@
-import os
-
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QApplication
 from PyQt6.QtGui import QPixmap, QPainter, QColor
 
-_ASSETS = os.path.join(os.path.dirname(__file__), "assets")
-_LOGOS  = os.path.join(_ASSETS, "logos")
+from constants import _asset
 
 
 def _logo(path: str, w: int, h: int) -> QLabel:
@@ -37,8 +34,8 @@ class SplashScreen(QWidget):
         layout.setSpacing(20)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        layout.addWidget(_logo(os.path.join(_ASSETS, "splash.png"), 200, 140))
-        layout.addWidget(_logo(os.path.join(_LOGOS, "parque_tecnologico.png"), 200, 140))
+        layout.addWidget(_logo(_asset("splash.png"), 200, 140))
+        layout.addWidget(_logo(_asset("logos", "parque_tecnologico.png"), 200, 140))
 
         layout.addStretch()
 
