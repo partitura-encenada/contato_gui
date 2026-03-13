@@ -1,17 +1,15 @@
-import os
-
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QApplication,
 )
 from PyQt6.QtGui import QPixmap
 
-_LOGOS = os.path.join(os.path.dirname(__file__), "assets", "logos")
+from constants import _asset
 
 
 def _logo(filename: str, w: int = 130, h: int = 56) -> QLabel:
     ratio = QApplication.primaryScreen().devicePixelRatio()
-    pix = QPixmap(os.path.join(_LOGOS, filename)).scaled(
+    pix = QPixmap(_asset("logos", filename)).scaled(
         int(w * ratio), int(h * ratio),
         Qt.AspectRatioMode.KeepAspectRatio,
         Qt.TransformationMode.SmoothTransformation,
@@ -71,7 +69,7 @@ class AboutDialog(QDialog):
         layout.addWidget(desc)
         layout.addSpacing(10)
 
-        splash_path = os.path.join(os.path.dirname(__file__), "assets", "splash.png")
+        splash_path = _asset("splash.png")
         pix = QPixmap(splash_path).scaled(
             60, 60,
             Qt.AspectRatioMode.KeepAspectRatio,

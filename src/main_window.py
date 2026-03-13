@@ -1,5 +1,4 @@
 import asyncio
-import os
 
 from PyQt6.QtWidgets import (
     QWidget, QDialog, QVBoxLayout,
@@ -10,10 +9,10 @@ from PyQt6.QtGui import QIcon
 from ble_client import BleConnection
 from device_picker_dialog import scan_devices, DevicePickerDialog
 from midi_manager import MidiManager
-from constants import PORT_INDEX
+from constants import PORT_INDEX, _asset
 from device_tab import DeviceTab
 
-_ICON = os.path.join(os.path.dirname(__file__), "assets", "icon.ico")
+_ICON = _asset("icon.ico")
 
 class MainWindow(QWidget):
     def __init__(self, app):

@@ -1,5 +1,3 @@
-import os
-
 from bleak import BleakScanner
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
@@ -8,9 +6,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QIcon
 
-from constants import BLE_MIDI_SERVICE_UUID
+from constants import BLE_MIDI_SERVICE_UUID, _asset
 
-_ICON = os.path.join(os.path.dirname(__file__), "assets", "icon.ico")
+_ICON = _asset("icon.ico")
 
 
 async def scan_devices():

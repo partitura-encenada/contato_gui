@@ -1,4 +1,11 @@
+import os
+import sys
 from enum import Enum
+
+
+def _asset(*parts):
+    base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, "assets", *parts)
 
 from PyQt6.QtGui import QColor
 
@@ -13,12 +20,10 @@ TILT_CHAR_UUID                 = 'd2e3f4a5-0002-4b33-a751-6ce34ec4c702'
 LEGATO_CHAR_UUID               = 'e3f4a5b6-0003-4b33-a751-6ce34ec4c703'
 BLE_MIDI_SERVICE_UUID          = '03b80e5a-ede8-4b33-a751-6ce34ec4c700'
 
-
 class AccelLevel(Enum):
     SUAVE = 800
     MÉDIO = 1250
     FORTE = 1600
-
 
 PRIMARY_COLOR = QColor(100, 180, 255)
 PORT_INDEX    = 0
@@ -38,7 +43,6 @@ INSTRUMENTS: list[tuple[str, int]] = [
     ("Voz",          54),  ("Órgão",         19),
     ("Pad",   89),  ("Pad Halo",      94),
 ]
-
 
 def name_to_midi(name: str) -> int:
     for note in sorted(NOTE_NAMES, key=len, reverse=True):

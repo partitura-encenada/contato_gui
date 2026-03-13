@@ -2,8 +2,7 @@ import json
 
 from PyQt6.QtWidgets import QFileDialog, QWidget
 
-
-def save_setup(window: QWidget, parent: QWidget | None = None) -> None:
+def save_setup(window: QWidget, parent: QWidget) -> None:
     path, _ = QFileDialog.getSaveFileName(
         parent, "Salvar Configuração", "", "JSON Files (*.json)"
     )
@@ -26,7 +25,7 @@ def save_setup(window: QWidget, parent: QWidget | None = None) -> None:
     print("Configuração salva em", path)
 
 
-def load_setup(window: QWidget, parent: QWidget | None = None) -> None:
+def load_setup(window: QWidget, parent: QWidget) -> None:
     path, _ = QFileDialog.getOpenFileName(
         parent, "Abrir Configuração", "", "JSON Files (*.json)"
     )

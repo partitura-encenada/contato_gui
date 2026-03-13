@@ -1,8 +1,8 @@
-import os
-
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QDialog, QGridLayout, QPushButton
 from PyQt6.QtGui import QIcon
+
+from constants import _asset
 
 
 # Diálogo modal com grade 4×4 de botões para seleção de instrumento GM
@@ -13,7 +13,7 @@ class InstrumentSelectorDialog(QDialog):
     def __init__(self, instruments: list[tuple[str, int]], current_index: int, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Selecionar Instrumento")
-        self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), "assets", "icon.ico")))
+        self.setWindowIcon(QIcon(_asset("icon.ico")))
         self.setModal(True)
 
         grid = QGridLayout(self)
