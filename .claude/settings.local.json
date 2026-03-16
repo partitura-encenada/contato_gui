@@ -5,7 +5,8 @@
       "WebFetch(domain:coppetec.org.br)",
       "WebFetch(domain:www.coppetec.org.br)",
       "Bash(curl:*)",
-      "Bash(cd \"C:\\\\Users\\\\Arthur Ranquine\\\\Projetos\\\\contato_gui\" && pyinstaller --noconfirm --windowed --onefile --icon=src/assets/icon.ico --name=Contato --add-data \"src/assets;assets\" src/__main__.py 2>&1)"
+      "Bash(cd \"C:\\\\Users\\\\Arthur Ranquine\\\\Projetos\\\\contato_gui\" && pyinstaller --noconfirm --windowed --onefile --icon=src/assets/icon.ico --name=Contato --add-data \"src/assets;assets\" src/__main__.py 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\Arthur Ranquine\\\\Projetos\\\\contato_gui\" && python -c \"from PyQt6.QtCore import QAccessible; from PyQt6.QtGui import QAccessibleValueChangeEvent; print\\('ok'\\)\")"
     ]
   }
 }
