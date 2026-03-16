@@ -127,7 +127,7 @@ class DeviceTab(QWidget):
         grid.addWidget(self.notas_spin, 0, 1)
 
         self.dir_combo = QComboBox()
-        self.dir_combo.addItems(["Esquerda", "Direita"])
+        self.dir_combo.addItems(["Direita", "Esquerda"])
         self.dir_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.dir_combo.setAccessibleName("Direção do giroscópio")
         self.dir_combo.currentIndexChanged.connect(self._on_direction_changed)
@@ -249,7 +249,7 @@ class DeviceTab(QWidget):
 
         if touch and not self._last_touch:
             notes   = [c.currentText() for c in self.selector.combos]
-            section = int((-gyro + GYRO_MAX_DEG) / (2 * GYRO_MAX_DEG) * len(notes))
+            section = min(int((-gyro + GYRO_MAX_DEG) / (2 * GYRO_MAX_DEG) * len(notes)), len(notes) - 1)
             self._last_touch_note = notes[section]
             self._set_status(f"Nota {self._last_touch_note} ativada")
         elif not touch and self._last_touch:
