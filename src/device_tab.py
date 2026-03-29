@@ -1,242 +1,81 @@
 import asyncio
 
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtWidgets import (
-    QApplication, QWidget, QFrame, QPushButton, QComboBox,
-    QLabel, QSpinBox, QCheckBox, QVBoxLayout, QHBoxLayout,
-    QGridLayout, QSizePolicy, QStyle,
-)
-from PyQt6.QtGui import QIcon, QPainter, QColor
+from PyQt6.QtWidgets import QWidget
 from qasync import asyncSlot
 
-from protocol import AccelLevel, GYRO_MAX_DEG, STATUS_CALIBRATING, name_to_midi
-from config import save_setup, load_setup
-from ble_client import BleConnection
-from midi_manager import MidiManager
-from notes_selector import SeletorCircular
 from about_dialog import AboutDialog
-
-
-class LoadingOverlay(QWidget):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.setVisible(False)
-
-        self._label = QLabel(self)
-        font = self._label.font()
-        font.setPointSize(14)
-        self._label.setFont(font)
-        self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        layout = QVBoxLayout(self)
-        layout.addStretch()
-        layout.addWidget(self._label)
-        layout.addStretch()
-
-    def show_overlay(self, message: str) -> None:
-        self._label.setText(message)
-        self.resize(self.parent().size())
-        self.raise_()
-        self.setVisible(True)
-
-    def hide_overlay(self) -> None:
-        self.setVisible(False)
-
-    def paintEvent(self, _) -> None:
-        p = QPainter(self)
-        p.fillRect(self.rect(), QColor(234, 244, 251, 210))
+from ble_client import BleConnection
+from config import load_setup, save_setup
+from device_controls import DeviceControls
+from loading_overlay import LoadingOverlay
+from midi_manager import MidiManager
+from protocol import GYRO_MAX_DEG, STATUS_CALIBRATING, name_to_midi
 
 
 class DeviceTab(QWidget):
     def __init__(self, ble: BleConnection, midi: MidiManager, device=None):
         super().__init__()
-        self.ble    = ble
-        self.midi   = midi
+        self.ble = ble
+        self.midi = midi
         self.device = device
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        topbar_frame = QFrame()
-        topbar_frame.setFixedHeight(40)
-        topbar_frame.setStyleSheet("QFrame { border-bottom: 1px solid #555; }")
-        topbar = QHBoxLayout(topbar_frame)
-        topbar.setContentsMargins(10, 0, 10, 0)
-        topbar.setSpacing(5)
-
-        save_btn     = QPushButton(" Salvar")
-        load_btn     = QPushButton(" Abrir")
-        self.cal_btn = QPushButton(" Calibrar")
-        about_btn    = QPushButton(" Sobre")
-
-        style = QApplication.style()
-        save_btn.setIcon(style.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
-        load_btn.setIcon(style.standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton))
-        self.cal_btn.setIcon(style.standardIcon(QStyle.StandardPixmap.SP_BrowserReload))
-        about_btn.setIcon(style.standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation))
-
-        for b in (save_btn, load_btn, self.cal_btn, about_btn):
-            b.setIconSize(QSize(16, 16))
-            b.setFixedHeight(24)
-
-        save_btn.setAccessibleName("Salvar configuração em arquivo")
-        load_btn.setAccessibleName("Abrir configuração de arquivo")
-        self.cal_btn.setAccessibleName("Calibrar giroscópio")
-        about_btn.setAccessibleName("Sobre o Contato GUI")
-
-        save_btn.clicked.connect(lambda: save_setup(self, self))
-        load_btn.clicked.connect(lambda: load_setup(self, self))
-        self.cal_btn.clicked.connect(self._on_calibrate)
-        about_btn.clicked.connect(self._show_about)
-
-        topbar.addWidget(save_btn)
-        topbar.addWidget(load_btn)
-        topbar.addStretch()
-        topbar.addWidget(self.cal_btn)
-        topbar.addWidget(about_btn)
-        layout.addWidget(topbar_frame)
-
-        self.selector = SeletorCircular(sections=6, ticks=60)
-        self.selector.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        layout.addWidget(self.selector, stretch=1)
-
-        self.selector.signalInstrumentChanged.connect(self._on_instrument_changed)
-        self.selector.signalNotePreview.connect(self._on_note_preview)
-
-        card = QFrame()
-        card.setObjectName("ControlsCard")
-        outer = QVBoxLayout(card)
-        outer.setContentsMargins(20, 14, 20, 16)
-        outer.setSpacing(0)
-
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(14)
-        grid.setVerticalSpacing(8)
-        grid.setColumnMinimumWidth(0, 110)
-        grid.setColumnStretch(1, 1)
-
-        self.notas_spin = QSpinBox()
-        self.notas_spin.setRange(1, 8)
-        self.notas_spin.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.notas_spin.setAccessibleName("Número de notas")
-        self.notas_spin.valueChanged.connect(self.selector.setSections)
-        self.notas_spin.setValue(6)
-        grid.addWidget(QLabel("Notas"), 0, 0)
-        grid.addWidget(self.notas_spin, 0, 1)
-
-        self.dir_combo = QComboBox()
-        self.dir_combo.addItems(["Direita", "Esquerda"])
-        self.dir_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.dir_combo.setAccessibleName("Direção do giroscópio")
-        self.dir_combo.currentIndexChanged.connect(self._on_direction_changed)
-        grid.addWidget(QLabel("Direção"), 1, 0)
-        grid.addWidget(self.dir_combo, 1, 1)
-
-        self.accel_combo = QComboBox()
-        for level in AccelLevel:
-            self.accel_combo.addItem(level.name.title(), level)
-        self.accel_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.accel_combo.setAccessibleName("Sensibilidade da percussão")
-        self.accel_combo.currentIndexChanged.connect(self._on_accel_changed)
-        grid.addWidget(QLabel("Sensibilidade"), 2, 0)
-        grid.addWidget(self.accel_combo, 2, 1)
-
-        self.midi_output_combo = QComboBox()
-        self.midi_output_combo.addItems(self.midi.ports)
-        self.midi_output_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.midi_output_combo.setAccessibleName("Porta de saída MIDI")
-        self.midi_output_combo.currentIndexChanged.connect(self.midi.open_port)
-
-        self.channel_combo = QComboBox()
-        self.channel_combo.addItems([str(i) for i in range(1, 17)])
-        self.channel_combo.setFixedWidth(64)
-        self.channel_combo.setAccessibleName("Canal MIDI de saída")
-
-        midi_row = QHBoxLayout()
-        midi_row.setContentsMargins(0, 0, 0, 0)
-        midi_row.setSpacing(8)
-        midi_row.addWidget(self.midi_output_combo, stretch=1)
-        midi_row.addWidget(QLabel("Canal"))
-        midi_row.addWidget(self.channel_combo)
-
-        midi_container = QWidget()
-        midi_container.setLayout(midi_row)
-
-        self.tilt_check = QCheckBox()
-        self.tilt_check.setAccessibleName("Pitch bend por inclinação do antebraço")
-        self.tilt_check.stateChanged.connect(self._on_tilt_changed)
-        grid.addWidget(QLabel("Pitch bend"), 3, 0)
-        grid.addWidget(self.tilt_check, 3, 1, Qt.AlignmentFlag.AlignRight)
-
-        self.legato_check = QCheckBox()
-        self.legato_check.setAccessibleName("Modo legato: a nota sustenta até tocar outra")
-        self.legato_check.stateChanged.connect(self._on_legato_changed)
-        grid.addWidget(QLabel("Legato"), 4, 0)
-        grid.addWidget(self.legato_check, 4, 1, Qt.AlignmentFlag.AlignRight)
-
-        grid.addWidget(QLabel("Saída MIDI"), 5, 0)
-        grid.addWidget(midi_container, 5, 1)
-        outer.addLayout(grid)
-        layout.addWidget(card)
-
-        footer = QFrame()
-        footer.setFixedHeight(22)
-        footer.setStyleSheet("QFrame { background-color: #dde8ee; }")
-        row = QHBoxLayout(footer)
-        row.setContentsMargins(10, 0, 10, 0)
-        self._status_label = QLabel("—")
-        row.addWidget(self._status_label)
-        row.addStretch()
-        layout.addWidget(footer)
-
-        # Conectado após a construção dos controles para evitar escrita BLE durante o init
-        self.selector.signalNotes.connect(self._on_notes_changed)
-
-        # Overlay semitransparente exibido durante conexão, reconexão e calibração
+        self.controls = DeviceControls(self, midi)
+        self.controls.build()
         self.overlay = LoadingOverlay(self)
-        self.overlay.show_overlay("Conectando...")
 
-        self.ble.midi = midi
-        self.ble.status_received.connect(self._on_ble_status)
-        self.ble.initial_state.connect(self._apply_initial_state)
-        self.ble.disconnected.connect(self._on_ble_disconnected)
+        self.selector = self.controls.selector
+        self.notas_spin = self.controls.notas_spin
+        self.dir_combo = self.controls.dir_combo
+        self.accel_combo = self.controls.accel_combo
+        self.midi_output_combo = self.controls.midi_output_combo
+        self.channel_combo = self.controls.channel_combo
+        self.tilt_check = self.controls.tilt_check
+        self.legato_check = self.controls.legato_check
+        self.cal_btn = self.controls.cal_btn
 
-        self._last_touch      = False
+        self._last_touch = False
         self._last_touch_note = ""
-        self._calibrating     = False
-        self._about_dialog    = None
+        self._calibrating = False
+        self._about_dialog = None
 
-        # Reconstrói a ordem de tabulação sempre que o número de seções muda
-        self.notas_spin.valueChanged.connect(lambda _: self._rebuild_tab_order())
+        self._connect_ui()
+        self._connect_ble()
 
-        self._set_controls_enabled(False)
-        self._rebuild_tab_order()
+        self.overlay.show_overlay("Conectando...")
+        self.controls.set_controls_enabled(False)
+        self.controls.rebuild_tab_order()
 
         if device:
             asyncio.create_task(self.ble.connect(device))
 
-    def _set_status(self, msg: str) -> None:
-        self._status_label.setText(msg)
+    def _connect_ui(self):
+        self.controls.save_btn.clicked.connect(lambda: save_setup(self, self))
+        self.controls.load_btn.clicked.connect(lambda: load_setup(self, self))
+        self.controls.cal_btn.clicked.connect(self._on_calibrate)
+        self.controls.about_btn.clicked.connect(self._show_about)
 
-    def _rebuild_tab_order(self) -> None:
-        # Define a ordem de navegação por Tab: notas primeiro, depois configurações.
-        # Reconstruída ao mudar o número de seções pois os combos são recriados.
-        chain = [
-            self.selector.center_button,
-            *self.selector.combos,
-            self.notas_spin,
-            self.dir_combo,
-            self.accel_combo,
-            self.tilt_check,
-            self.legato_check,
-            self.midi_output_combo,
-            self.channel_combo,
-        ]
-        for a, b in zip(chain, chain[1:]):
-            QWidget.setTabOrder(a, b)
+        self.notas_spin.valueChanged.connect(self.selector.setSections)
+        self.notas_spin.valueChanged.connect(lambda _: self.controls.rebuild_tab_order())
+        self.dir_combo.currentIndexChanged.connect(self._on_direction_changed)
+        self.accel_combo.currentIndexChanged.connect(self._on_accel_changed)
+        self.midi_output_combo.currentIndexChanged.connect(self.midi.open_port)
+        self.tilt_check.stateChanged.connect(self._on_tilt_changed)
+        self.legato_check.stateChanged.connect(self._on_legato_changed)
 
-    def _on_ble_status(self, gyro: int, touch: bool, state: int, tilt: int) -> None:
+        self.selector.signalInstrumentChanged.connect(self._on_instrument_changed)
+        self.selector.signalNotePreview.connect(self._on_note_preview)
+        self.selector.signalNotes.connect(self._on_notes_changed)
+
+    def _connect_ble(self):
+        self.ble.midi = self.midi
+        self.ble.status_received.connect(self._on_ble_status)
+        self.ble.initial_state.connect(self._apply_initial_state)
+        self.ble.disconnected.connect(self._on_ble_disconnected)
+
+    def _set_status(self, message):
+        self.controls.set_status(message)
+
+    def _on_ble_status(self, gyro, touch, state, tilt):
         if state == STATUS_CALIBRATING:
             if not self._calibrating:
                 self._calibrating = True
@@ -248,36 +87,25 @@ class DeviceTab(QWidget):
             self.overlay.hide_overlay()
 
         if touch and not self._last_touch:
-            notes   = [c.currentText() for c in self.selector.combos]
+            notes = [combo.currentText() for combo in self.selector.combos]
             section = min(int((-gyro + GYRO_MAX_DEG) / (2 * GYRO_MAX_DEG) * len(notes)), len(notes) - 1)
             self._last_touch_note = notes[section]
             self._set_status(f"Nota {self._last_touch_note} ativada")
         elif not touch and self._last_touch:
             self._set_status(f"Nota {self._last_touch_note} desativada")
 
-        self._last_touch    = touch
-        self.selector.gyro  = gyro
+        self._last_touch = touch
+        self.selector.gyro = gyro
         self.selector.touch = touch
-        self.selector.tilt  = tilt
+        self.selector.tilt = tilt
         self.selector.update()
 
-    def _on_ble_disconnected(self) -> None:
+    def _on_ble_disconnected(self):
         self._calibrating = False
-        self._set_controls_enabled(False)
+        self.controls.set_controls_enabled(False)
         self.overlay.show_overlay("Reconectando...")
 
-    def _set_controls_enabled(self, enabled: bool) -> None:
-        self.selector.setEnabled(enabled)
-        self.notas_spin.setEnabled(enabled)
-        self.dir_combo.setEnabled(enabled)
-        self.accel_combo.setEnabled(enabled)
-        self.tilt_check.setEnabled(enabled)
-        self.legato_check.setEnabled(enabled)
-        self.midi_output_combo.setEnabled(enabled)
-        self.channel_combo.setEnabled(enabled)
-        self.cal_btn.setEnabled(enabled)
-
-    def _apply_initial_state(self, state: dict) -> None:
+    def _apply_initial_state(self, state):
         notes = state.get("notes", [])
 
         self.notas_spin.blockSignals(True)
@@ -317,49 +145,48 @@ class DeviceTab(QWidget):
             self.legato_check.setChecked(state["legato_enabled"])
             self.legato_check.blockSignals(False)
 
-        self._set_controls_enabled(True)
-        self._rebuild_tab_order()
+        self.controls.set_controls_enabled(True)
+        self.controls.rebuild_tab_order()
         self.overlay.hide_overlay()
 
     @asyncSlot(int, str)
-    async def _on_instrument_changed(self, program: int, name: str) -> None:
-        ch = int(self.channel_combo.currentText()) - 1
-        self.midi.program_change(ch, program)
+    async def _on_instrument_changed(self, program, name):
+        channel = int(self.channel_combo.currentText()) - 1
+        self.midi.program_change(channel, program)
 
-    def _on_note_preview(self, note_name: str) -> None:
-        ch = int(self.channel_combo.currentText()) - 1
-        self.midi.all_notes_off(ch)
-        self.midi.preview_note(ch, name_to_midi(note_name))
+    def _on_note_preview(self, note_name):
+        channel = int(self.channel_combo.currentText()) - 1
+        self.midi.all_notes_off(channel)
+        self.midi.preview_note(channel, name_to_midi(note_name))
         self._set_status(f"Pré-visualização: {note_name}")
 
     @asyncSlot(list)
-    async def _on_notes_changed(self, notes_list: list) -> None:
+    async def _on_notes_changed(self, notes_list):
         await self.ble.write_sections(notes_list)
 
     @asyncSlot(int)
-    async def _on_accel_changed(self, idx: int) -> None:
-        level = self.accel_combo.itemData(idx)
-        await self.ble.write_accel(level)
+    async def _on_accel_changed(self, idx):
+        await self.ble.write_accel(self.accel_combo.itemData(idx))
 
     @asyncSlot(int)
-    async def _on_tilt_changed(self, state: int) -> None:
+    async def _on_tilt_changed(self, state):
         enabled = bool(state)
         self.selector.tilt_enabled = enabled
         await self.ble.write_tilt_enabled(enabled)
 
     @asyncSlot(int)
-    async def _on_legato_changed(self, state: int) -> None:
+    async def _on_legato_changed(self, state):
         await self.ble.write_legato_enabled(bool(state))
 
     @asyncSlot(int)
-    async def _on_direction_changed(self, idx: int) -> None:
+    async def _on_direction_changed(self, idx):
         await self.ble.write_direction(idx)
 
     @asyncSlot()
-    async def _on_calibrate(self) -> None:
+    async def _on_calibrate(self):
         await self.ble.calibrate()
 
-    def _show_about(self) -> None:
+    def _show_about(self):
         dlg = AboutDialog(self)
         self._about_dialog = dlg
         dlg.finished.connect(lambda _: setattr(self, "_about_dialog", None))
