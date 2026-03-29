@@ -6,7 +6,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QIcon
 
-from constants import BLE_MIDI_SERVICE_UUID, _asset
+from protocol import BLE_MIDI_SERVICE_UUID
+from constants import _asset
 
 _ICON = _asset("icon.ico")
 

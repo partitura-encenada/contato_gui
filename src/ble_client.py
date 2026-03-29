@@ -1,11 +1,10 @@
 import asyncio
-import struct
 
 from PyQt6.QtCore import QObject, pyqtSignal
 from bleak import BleakClient
 from bleak.backends.characteristic import BleakGATTCharacteristic
 
-from constants import (
+from protocol import (
     SECTIONS_CHAR_UUID,
     STATUS_CHARACTERISTIC_UUID,
     ACCEL_SENS_CHARACTERISTIC_UUID,
@@ -15,7 +14,8 @@ from constants import (
     TILT_CHAR_UUID,
     LEGATO_CHAR_UUID,
     AccelLevel,
-    NOTE_NAMES,
+    decode_status,
+    midi_to_name,
     name_to_midi,
 )
 
@@ -28,20 +28,40 @@ class BleConnection(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._client: BleakClient | None = None
+        self._client = None
         self.midi = None
         self._running = True
 
     def _on_status(self, _: BleakGATTCharacteristic, data: bytearray):
-        state, touch, gyro_x, accel_x, tilt = struct.unpack("<BBhhh", data)
-        self.status_received.emit(gyro_x, bool(touch), state, tilt)
+        status = decode_status(data)
+        self.status_received.emit(status["gyro"], status["touch"], status["state"], status["tilt"])
 
     def _on_midi(self, _: BleakGATTCharacteristic, data: bytearray):
         raw = bytes(data)
         if len(raw) < 3:
             return
-        # Chamada direta evita o despacho pelo event loop do Qt
         self.midi.send(list(raw[-3:]))
+
+    async def _read_initial_state(self, client):
+        state = {}
+
+        section_bytes = await client.read_gatt_char(SECTIONS_CHAR_UUID)
+        state["notes"] = [midi_to_name(value) for value in section_bytes]
+
+        sens_bytes = await client.read_gatt_char(ACCEL_SENS_CHARACTERISTIC_UUID)
+        raw = int.from_bytes(sens_bytes[:2], "little", signed=True)
+        state["accel_level"] = min(AccelLevel, key=lambda level: abs(level.value - raw))
+
+        dir_bytes = await client.read_gatt_char(DIR_CHAR_UUID)
+        state["direction"] = 1 if dir_bytes[0] != 0 else 0
+
+        tilt_bytes = await client.read_gatt_char(TILT_CHAR_UUID)
+        state["tilt_enabled"] = tilt_bytes[0] != 0
+
+        legato_bytes = await client.read_gatt_char(LEGATO_CHAR_UUID)
+        state["legato_enabled"] = legato_bytes[0] != 0
+
+        return state
 
     async def connect(self, device) -> None:
         while self._running:
@@ -49,32 +69,7 @@ class BleConnection(QObject):
                 self._client = client
                 print(f"Conectado a {device.name} / {device.address}")
                 self.connected.emit()
-
-                # Lê estado inicial antes de ativar notificações
-                state: dict = {}
-
-                section_bytes = await client.read_gatt_char(SECTIONS_CHAR_UUID)
-                notes = []
-                for b in section_bytes:
-                    note   = NOTE_NAMES[b % 12]
-                    octave = max(1, min(5, (b // 12) - 1))
-                    notes.append(f"{note} {octave}")
-                state["notes"] = notes
-
-                sens_bytes = await client.read_gatt_char(ACCEL_SENS_CHARACTERISTIC_UUID)
-                raw = int.from_bytes(sens_bytes[:4], "little", signed=True)
-                state["accel_level"] = min(AccelLevel, key=lambda lvl: abs(lvl.value - raw))
-
-                dir_bytes = await client.read_gatt_char(DIR_CHAR_UUID)
-                state["direction"] = 1 if dir_bytes[0] != 0 else 0
-
-                tilt_bytes = await client.read_gatt_char(TILT_CHAR_UUID)
-                state["tilt_enabled"] = tilt_bytes[0] != 0
-
-                legato_bytes = await client.read_gatt_char(LEGATO_CHAR_UUID)
-                state["legato_enabled"] = legato_bytes[0] != 0
-
-                self.initial_state.emit(state)
+                self.initial_state.emit(await self._read_initial_state(client))
 
                 await client.start_notify(BLE_MIDI_CHAR_UUID, self._on_midi)
                 await client.start_notify(STATUS_CHARACTERISTIC_UUID, self._on_status)
