@@ -1,5 +1,4 @@
 import asyncio
-import os
 
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtWidgets import (
@@ -10,7 +9,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QIcon, QPainter, QColor
 from qasync import asyncSlot
 
-from constants import AccelLevel, GYRO_MAX_DEG, name_to_midi
+from protocol import AccelLevel, GYRO_MAX_DEG, STATUS_CALIBRATING, name_to_midi
 from config import save_setup, load_setup
 from ble_client import BleConnection
 from midi_manager import MidiManager
@@ -89,7 +88,7 @@ class DeviceTab(QWidget):
         save_btn.clicked.connect(lambda: save_setup(self, self))
         load_btn.clicked.connect(lambda: load_setup(self, self))
         self.cal_btn.clicked.connect(self._on_calibrate)
-        about_btn.clicked.connect(lambda: AboutDialog(self).exec())
+        about_btn.clicked.connect(self._show_about)
 
         topbar.addWidget(save_btn)
         topbar.addWidget(load_btn)
@@ -206,6 +205,7 @@ class DeviceTab(QWidget):
         self._last_touch      = False
         self._last_touch_note = ""
         self._calibrating     = False
+        self._about_dialog    = None
 
         # Reconstrói a ordem de tabulação sempre que o número de seções muda
         self.notas_spin.valueChanged.connect(lambda _: self._rebuild_tab_order())
@@ -237,7 +237,7 @@ class DeviceTab(QWidget):
             QWidget.setTabOrder(a, b)
 
     def _on_ble_status(self, gyro: int, touch: bool, state: int, tilt: int) -> None:
-        if state == 1:
+        if state == STATUS_CALIBRATING:
             if not self._calibrating:
                 self._calibrating = True
                 self.overlay.show_overlay("Calibrando...")
@@ -358,3 +358,9 @@ class DeviceTab(QWidget):
     @asyncSlot()
     async def _on_calibrate(self) -> None:
         await self.ble.calibrate()
+
+    def _show_about(self) -> None:
+        dlg = AboutDialog(self)
+        self._about_dialog = dlg
+        dlg.finished.connect(lambda _: setattr(self, "_about_dialog", None))
+        dlg.open()

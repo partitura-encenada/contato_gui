@@ -6,7 +6,8 @@ from PyQt6.QtGui import (
     QPainter, QPen, QColor, QPainterPath,
 )
 
-from constants import NOTE_NAMES, INSTRUMENTS
+from protocol import NOTE_NAMES
+from constants import INSTRUMENTS
 from combo_box import ToggleEnterComboBox
 from instrument_dialog import InstrumentSelectorDialog
 
@@ -57,6 +58,7 @@ class SeletorCircular(QFrame):
 
         self.instruments = INSTRUMENTS
         self.current_instrument_index = 0
+        self._instrument_dialog = None
 
         # Botão central circular — abre o seletor de instrumento
         self.center_button = QPushButton("♪", self)
@@ -136,7 +138,9 @@ class SeletorCircular(QFrame):
             self.instruments, self.current_instrument_index, self
         )
         dlg.instrumentSelected.connect(self.setInstrument)
-        dlg.exec()
+        self._instrument_dialog = dlg
+        dlg.finished.connect(lambda _: setattr(self, "_instrument_dialog", None))
+        dlg.open()
 
     def _draw_arrow(self, painter, px, py, angle, opacity=1.0) -> None:
         # Desenha a seta indicadora em (px, py) rotacionada para o ângulo dado (radianos)
