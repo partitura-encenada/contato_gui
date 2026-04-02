@@ -1,80 +1,94 @@
-import sys
 import asyncio
+import sys
 
-from PyQt6.QtCore import QObject, QEvent, Qt
-from PyQt6.QtWidgets import QPushButton, QCheckBox
+from PyQt6.QtCore import QEvent, QObject, Qt
+from PyQt6.QtWidgets import QCheckBox, QPushButton
 from qasync import QApplication as QAsyncApplication, QEventLoop
 
+from device_picker_dialog import DevicePickerDialog, scan_devices
 from main_window import MainWindow
-from device_picker_dialog import scan_devices, DevicePickerDialog
 from splash_screen import SplashScreen
 
 
-class _EnterKeyFilter(QObject):
+APP_STYLESHEET = """
+QWidget     { background-color: #eaf4fb; color: #1a3a4a; }
+QPushButton { background-color: #f5fbff; border: 1px solid #7dbfe8; padding: 4px 10px; }
+QPushButton:hover   { background-color: #d0ecf8; }
+QPushButton:pressed { background-color: #7dbfe8; }
+QComboBox   { border: 1px solid #7dbfe8; padding: 4px }
+QSpinBox    { background-color: #f5fbff; border: 1px solid #7dbfe8; padding: 4px; }
+QListWidget { background-color: #f5fbff; border: 1px solid #7dbfe8; border-radius: 8px; outline: 0; }
+QListWidget::item:selected { background-color: #7dbfe8; color: #1a3a4a; outline: 0; }
+QCheckBox::indicator { width: 14px; height: 14px; border: 1px solid #7dbfe8; background-color: #f5fbff; }
+QCheckBox::indicator:checked { background-color: #7dbfe8; }
+QTabWidget::pane { border: 1px solid #7dbfe8; border-top: none; }
+QTabBar::tab          { background: #dde8ee; border: 1px solid #7dbfe8; border-bottom: none; padding: 4px 10px; margin-right: 2px; }
+QTabBar::tab:selected { background: #eaf4fb; }
+QTabBar::tab:hover    { background: #d0ecf8; }
+"""
+
+APP_ACCESSIBLE_DESCRIPTION = (
+    "Contato, o instrumento musical para ser dançado."
+    "Use Tab para navegar pelos controles."
+    "As notas musicais ficam no início da navegação, seguidas das configurações. "
+    "Aguardando conexão com o dispositivo Contato."
+)
+
+
+class EnterKeyFilter(QObject):
     def eventFilter(self, obj, event):
-        if event.type() == QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            if isinstance(obj, (QPushButton, QCheckBox)):
-                obj.click()
-                return True
+        is_enter = event.type() == QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+        if is_enter and isinstance(obj, (QPushButton, QCheckBox)):
+            obj.click()
+            return True
         return False
 
 
-async def main_async(app) -> None:
-    app.setStyleSheet("""
-        QWidget     { background-color: #eaf4fb; color: #1a3a4a; }
-        QPushButton { background-color: #f5fbff; border: 1px solid #7dbfe8; padding: 4px 10px; }
-        QPushButton:hover   { background-color: #d0ecf8; }
-        QPushButton:pressed { background-color: #7dbfe8; }
-        QComboBox   { border: 1px solid #7dbfe8; padding: 4px }
-        QSpinBox    { background-color: #f5fbff; border: 1px solid #7dbfe8; padding: 4px; }
-        QListWidget { background-color: #f5fbff; border: 1px solid #7dbfe8; border-radius: 8px; outline: 0; }
-        QListWidget::item:selected { background-color: #7dbfe8; color: #1a3a4a; outline: 0; }
-        QCheckBox::indicator { width: 14px; height: 14px; border: 1px solid #7dbfe8; background-color: #f5fbff; }
-        QCheckBox::indicator:checked { background-color: #7dbfe8; }
-        QTabWidget::pane { border: 1px solid #7dbfe8; border-top: none; }
-        QTabBar::tab          { background: #dde8ee; border: 1px solid #7dbfe8;
-                                border-bottom: none; padding: 4px 10px; margin-right: 2px; }
-        QTabBar::tab:selected { background: #eaf4fb; }
-        QTabBar::tab:hover    { background: #d0ecf8; }
-    """)
+def create_application():
+    app = QAsyncApplication(sys.argv)
+    app.installEventFilter(EnterKeyFilter(app))
+    app.setStyleSheet(APP_STYLESHEET)
+    return app
 
-    app_close_event = asyncio.Event()
-    app.aboutToQuit.connect(app_close_event.set)
 
+async def choose_first_device(app):
     splash = SplashScreen()
     splash.show()
     app.processEvents()
     devices = await scan_devices()
     splash.close()
 
-    dlg = DevicePickerDialog(devices)
-    if not dlg.exec():
-        print("Nenhum dispositivo selecionado — encerrando.")
+    dialog = DevicePickerDialog(devices)
+    if dialog.exec():
+        return dialog.selected_device
+    return None
+
+
+async def run_application(app):
+    app_close_event = asyncio.Event()
+    app.aboutToQuit.connect(app_close_event.set)
+
+    selected_device = await choose_first_device(app)
+    if selected_device is None:
         app.quit()
         return
 
     window = MainWindow(app)
-    window.add_device(dlg.selected_device)
+    window.add_device(selected_device)
+    window.setAccessibleName(APP_ACCESSIBLE_DESCRIPTION)
     window.show()
+
     await asyncio.sleep(0)
     window.setFixedSize(window.size())
     screen = app.primaryScreen().availableGeometry()
     window.move((screen.width() - window.width()) // 2, screen.top())
 
-    # Anuncia uma descrição do app para leitores de tela (Narrator/NVDA) ao iniciar
-    window.setAccessibleName(
-        "Contato, o instrumento musical para ser dançado."
-        "Use Tab para navegar pelos controles."
-        "As notas musicais ficam no início da navegação, seguidas das configurações. "
-        "Aguardando conexão com o dispositivo Contato."
-    )
-
     await app_close_event.wait()
 
+
 if __name__ == "__main__":
-    qapp = QAsyncApplication(sys.argv)
-    qapp.installEventFilter(_EnterKeyFilter(qapp))
-    loop = QEventLoop(qapp)
-    asyncio.set_event_loop(loop)
-    with loop:
-        loop.run_until_complete(main_async(qapp))
+    app = create_application()
+    event_loop = QEventLoop(app)
+    asyncio.set_event_loop(event_loop)
+    with event_loop:
+        event_loop.run_until_complete(run_application(app))

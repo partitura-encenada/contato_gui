@@ -1,13 +1,18 @@
 from bleak import BleakScanner
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QListWidget, QListWidgetItem,
-)
 from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QVBoxLayout,
+)
 
-from protocol import BLE_MIDI_SERVICE_UUID
 from constants import _asset
+from protocol import BLE_MIDI_SERVICE_UUID
 
 _ICON = _asset("icon.ico")
 
@@ -19,6 +24,8 @@ async def scan_devices():
 class DevicePickerDialog(QDialog):
     def __init__(self, devices):
         super().__init__()
+        self.selected_device = None
+
         self.setWindowTitle("Selecionar dispositivo BLE")
         self.setWindowIcon(QIcon(_ICON))
         self.setModal(True)
@@ -30,33 +37,35 @@ class DevicePickerDialog(QDialog):
         layout.addWidget(QLabel("Dispositivos encontrados"))
         layout.addWidget(QLabel("Selecione o dispositivo 'Contato' para conectar:"))
 
-        self.listw = QListWidget(self)
-        self.listw.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
-        self.listw.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        for d in devices:
-            item = QListWidgetItem(f"  {d.name}  —  {d.address}")
-            item.setData(Qt.ItemDataRole.UserRole, d)
-            self.listw.addItem(item)
-        layout.addWidget(self.listw)
+        self.list_widget = QListWidget(self)
+        self.list_widget.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        self.list_widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        layout.addWidget(self.list_widget)
 
-        hl = QHBoxLayout()
-        hl.setSpacing(8)
-        btn_cancel = QPushButton("Cancelar")
-        btn_ok     = QPushButton("Conectar")
-        btn_ok.setDefault(True)
-        hl.addStretch()
-        hl.addWidget(btn_cancel)
-        hl.addWidget(btn_ok)
-        layout.addLayout(hl)
+        for device in devices:
+            item = QListWidgetItem(f"  {device.name}  —  {device.address}")
+            item.setData(Qt.ItemDataRole.UserRole, device)
+            self.list_widget.addItem(item)
 
-        btn_ok.clicked.connect(self._on_ok)
-        btn_cancel.clicked.connect(self.reject)
+        buttons_row = QHBoxLayout()
+        buttons_row.setSpacing(8)
+        buttons_row.addStretch()
 
-        if self.listw.count():
-            self.listw.setCurrentRow(0)
-        self.listw.setFocus()
+        cancel_button = QPushButton("Cancelar")
+        connect_button = QPushButton("Conectar")
+        connect_button.setDefault(True)
+        buttons_row.addWidget(cancel_button)
+        buttons_row.addWidget(connect_button)
+        layout.addLayout(buttons_row)
 
-    def _on_ok(self) -> None:
-        sel = self.listw.currentItem()
-        self.selected_device = sel.data(Qt.ItemDataRole.UserRole)
+        cancel_button.clicked.connect(self.reject)
+        connect_button.clicked.connect(self._accept_selected_device)
+
+        if self.list_widget.count():
+            self.list_widget.setCurrentRow(0)
+        self.list_widget.setFocus()
+
+    def _accept_selected_device(self):
+        current_item = self.list_widget.currentItem()
+        self.selected_device = current_item.data(Qt.ItemDataRole.UserRole)
         self.accept()
