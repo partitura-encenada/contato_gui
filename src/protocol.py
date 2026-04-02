@@ -48,4 +48,3 @@ def name_to_midi(name):
         if name.startswith(note):
             octave = int(name[len(note):].strip())
             return (octave + 1) * 12 + NOTE_NAMES.index(note)
-    return 0

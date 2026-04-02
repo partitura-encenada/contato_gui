@@ -38,11 +38,10 @@ class BleConnection(QObject):
 
     def _on_midi(self, _: BleakGATTCharacteristic, data: bytearray):
         raw = bytes(data)
-        if len(raw) < 3:
-            return
         self.midi.send(list(raw[-3:]))
 
     async def _read_initial_state(self, client):
+        # Lê todo o estado obrigatório do firmware de uma vez e devolve um dicionário enxuto.
         state = {}
 
         section_bytes = await client.read_gatt_char(SECTIONS_CHAR_UUID)
@@ -74,6 +73,7 @@ class BleConnection(QObject):
                 await client.start_notify(BLE_MIDI_CHAR_UUID, self._on_midi)
                 await client.start_notify(STATUS_CHARACTERISTIC_UUID, self._on_status)
 
+                # A conexão fica viva em laço simples até perda do link ou parada explícita.
                 while self._running and client.is_connected:
                     await asyncio.sleep(0.5)
 

@@ -19,8 +19,6 @@ async def scan_devices():
 class DevicePickerDialog(QDialog):
     def __init__(self, devices):
         super().__init__()
-        self.selected_device = None
-
         self.setWindowTitle("Selecionar dispositivo BLE")
         self.setWindowIcon(QIcon(_ICON))
         self.setModal(True)
@@ -36,7 +34,7 @@ class DevicePickerDialog(QDialog):
         self.listw.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
         self.listw.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         for d in devices:
-            item = QListWidgetItem(f"  {d.name or 'Unknown'}  —  {d.address}")
+            item = QListWidgetItem(f"  {d.name}  —  {d.address}")
             item.setData(Qt.ItemDataRole.UserRole, d)
             self.listw.addItem(item)
         layout.addWidget(self.listw)
@@ -60,8 +58,5 @@ class DevicePickerDialog(QDialog):
 
     def _on_ok(self) -> None:
         sel = self.listw.currentItem()
-        if sel:
-            self.selected_device = sel.data(Qt.ItemDataRole.UserRole)
-            self.accept()
-        else:
-            self.reject()
+        self.selected_device = sel.data(Qt.ItemDataRole.UserRole)
+        self.accept()

@@ -40,12 +40,12 @@ class MainWindow(QWidget):
         return self.tabs.count() - 1
 
     def add_device(self, device) -> None:
-        # Instancia uma nova conexão em uma aba nova
+        # Cada aba carrega seu próprio ciclo BLE + MIDI para manter o fechamento simples.
         ble  = BleConnection()
         midi = MidiManager(PORT_INDEX)
         page = DeviceTab(ble=ble, midi=midi, device=device)
         idx  = self._plus_idx  # inserir antes do "+"
-        label = device.name or device.address
+        label = device.name
         self.tabs.insertTab(idx, page, label)
         self.tabs.setCurrentIndex(idx)
 
@@ -73,18 +73,18 @@ class MainWindow(QWidget):
 
     async def _open_picker(self) -> None:
         self._picking = True
-        try:
-            devices = await scan_devices()
-            dlg = DevicePickerDialog(devices)
-            future = asyncio.get_event_loop().create_future()
-            dlg.finished.connect(future.set_result)
-            dlg.open()
-            if await future == QDialog.DialogCode.Accepted:
-                self.add_device(dlg.selected_device)
-        finally:
-            self._picking = False
+        # O seletor é aberto sob demanda e a escolha volta direto para a criação da nova aba.
+        devices = await scan_devices()
+        dlg = DevicePickerDialog(devices)
+        future = asyncio.get_event_loop().create_future()
+        dlg.finished.connect(future.set_result)
+        dlg.open()
+        if await future == QDialog.DialogCode.Accepted:
+            self.add_device(dlg.selected_device)
+        self._picking = False
 
     def _cleanup_page(self, page: DeviceTab) -> None:
+        # O encerramento força notas-off, fecha MIDI e dispara a parada assíncrona do BLE.
         asyncio.create_task(page.ble.stop())
         for ch in range(16):
             page.midi.all_notes_off(ch)
@@ -103,5 +103,3 @@ class MainWindow(QWidget):
             self.tabs.removeTab(0)
         self.app.quit()
         super().closeEvent(event)
-
-
