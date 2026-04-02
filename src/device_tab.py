@@ -38,18 +38,6 @@ class DeviceTab(QWidget):
         self._calibrating = False
         self._about_dialog = None
 
-        self._create_widgets()
-        self._build_layout()
-        self._connect_ui()
-        self._connect_ble()
-
-        # A aba nasce travada e só libera a UI depois de sincronizar com o estado do dispositivo.
-        self.set_overlay("Conectando...")
-        self.set_controls_enabled(False)
-        self.rebuild_tab_order()
-        asyncio.create_task(self.ble.connect(device))
-
-    def _create_widgets(self):
         style = QApplication.style()
 
         self.selector = SeletorCircular(sections=6, ticks=60)
@@ -59,14 +47,12 @@ class DeviceTab(QWidget):
         self.load_btn = QPushButton(" Abrir")
         self.cal_btn = QPushButton(" Calibrar")
         self.about_btn = QPushButton(" Sobre")
-
-        button_specs = (
+        for button, icon, accessible_name in (
             (self.save_btn, QStyle.StandardPixmap.SP_DialogSaveButton, "Salvar configuração em arquivo"),
             (self.load_btn, QStyle.StandardPixmap.SP_DialogOpenButton, "Abrir configuração de arquivo"),
             (self.cal_btn, QStyle.StandardPixmap.SP_BrowserReload, "Calibrar giroscópio"),
             (self.about_btn, QStyle.StandardPixmap.SP_MessageBoxInformation, "Sobre o Contato GUI"),
-        )
-        for button, icon, accessible_name in button_specs:
+        ):
             button.setIcon(style.standardIcon(icon))
             button.setIconSize(QSize(16, 16))
             button.setFixedHeight(24)
@@ -112,11 +98,9 @@ class DeviceTab(QWidget):
         self.overlay.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.overlay.setStyleSheet("background-color: rgba(234, 244, 251, 210); font-size: 14pt;")
 
-    def _build_layout(self):
         topbar = QFrame()
         topbar.setFixedHeight(40)
         topbar.setStyleSheet("QFrame { border-bottom: 1px solid #555; }")
-
         topbar_layout = QHBoxLayout(topbar)
         topbar_layout.setContentsMargins(10, 0, 10, 0)
         topbar_layout.setSpacing(5)
@@ -162,7 +146,6 @@ class DeviceTab(QWidget):
         footer = QFrame()
         footer.setFixedHeight(22)
         footer.setStyleSheet("QFrame { background-color: #dde8ee; }")
-
         footer_layout = QHBoxLayout(footer)
         footer_layout.setContentsMargins(10, 0, 10, 0)
         footer_layout.addWidget(self.status_label)
@@ -176,7 +159,6 @@ class DeviceTab(QWidget):
         layout.addWidget(controls_card)
         layout.addWidget(footer)
 
-    def _connect_ui(self):
         self.save_btn.clicked.connect(lambda: save_setup(self, self))
         self.load_btn.clicked.connect(lambda: load_setup(self, self))
         self.cal_btn.clicked.connect(self._on_calibrate)
@@ -194,12 +176,15 @@ class DeviceTab(QWidget):
         self.selector.signalNotePreview.connect(self._on_note_preview)
         self.selector.signalNotes.connect(self._on_notes_changed)
 
-    def _connect_ble(self):
-        # O fluxo é direto: BLE emite sinais e a aba atualiza a interface sem camada intermediária.
         self.ble.midi = self.midi
         self.ble.status_received.connect(self._on_ble_status)
         self.ble.initial_state.connect(self._apply_initial_state)
         self.ble.disconnected.connect(self._on_ble_disconnected)
+
+        self.set_overlay("Conectando...")
+        self.set_controls_enabled(False)
+        self.rebuild_tab_order()
+        asyncio.create_task(self.ble.connect(device))
 
     def resizeEvent(self, event):
         self.overlay.resize(self.size())
@@ -274,7 +259,6 @@ class DeviceTab(QWidget):
         self.set_overlay("Reconectando...")
 
     def _apply_initial_state(self, state):
-        # A sincronização inicial aplica tudo em sequência para deixar a leitura previsível.
         notes = state["notes"]
         accel_level = state["accel_level"]
         direction = state["direction"]

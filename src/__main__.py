@@ -44,14 +44,10 @@ class EnterKeyFilter(QObject):
         return False
 
 
-def create_application():
-    app = QAsyncApplication(sys.argv)
-    app.installEventFilter(EnterKeyFilter(app))
-    app.setStyleSheet(APP_STYLESHEET)
-    return app
+async def run_application(app):
+    app_close_event = asyncio.Event()
+    app.aboutToQuit.connect(app_close_event.set)
 
-
-async def choose_first_device(app):
     splash = SplashScreen()
     splash.show()
     app.processEvents()
@@ -59,22 +55,12 @@ async def choose_first_device(app):
     splash.close()
 
     dialog = DevicePickerDialog(devices)
-    if dialog.exec():
-        return dialog.selected_device
-    return None
-
-
-async def run_application(app):
-    app_close_event = asyncio.Event()
-    app.aboutToQuit.connect(app_close_event.set)
-
-    selected_device = await choose_first_device(app)
-    if selected_device is None:
+    if not dialog.exec():
         app.quit()
         return
 
     window = MainWindow(app)
-    window.add_device(selected_device)
+    window.add_device(dialog.selected_device)
     window.setAccessibleName(APP_ACCESSIBLE_DESCRIPTION)
     window.show()
 
@@ -87,7 +73,10 @@ async def run_application(app):
 
 
 if __name__ == "__main__":
-    app = create_application()
+    app = QAsyncApplication(sys.argv)
+    app.installEventFilter(EnterKeyFilter(app))
+    app.setStyleSheet(APP_STYLESHEET)
+
     event_loop = QEventLoop(app)
     asyncio.set_event_loop(event_loop)
     with event_loop:
