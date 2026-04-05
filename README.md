@@ -54,7 +54,10 @@ Requer [PyInstaller](https://pyinstaller.org):
 
 ```bash
 pip install pyinstaller
+# Windows (separador ;)
 pyinstaller --noconfirm --windowed --onefile --icon=src/assets/icon.ico --name=Contato --add-data "src/assets;assets" src/__main__.py
+# Linux / macOS (separador :)
+pyinstaller --noconfirm --windowed --onefile --icon=src/assets/icon.ico --name=Contato --add-data "src/assets:assets" src/__main__.py
 ```
 
 O executável é gerado em `dist/Contato.exe`.
@@ -63,21 +66,22 @@ O executável é gerado em `dist/Contato.exe`.
 
 ```
 contato_gui/
-├── repertorio/ # Setups para testes
+├── repertorio/              # Setups para testes
 ├── src/
-│   ├── __main__.py          # Ponto de entrada
-│   ├── app.py               # Inicialização da aplicação
-│   ├── main_window.py       # Janela principal
-│   ├── notes_selector.py    # Widget seletor circular de notas
-│   ├── combo_box.py         # ComboBox customizado
-│   ├── instrument_dialog.py # Seletor de instrumento
-│   ├── about_dialog.py      # Diálogo Sobre
-│   ├── splash_screen.py     # Tela de carregamento
-│   ├── ble_client.py        # Gerenciamento da conexão BLE
-│   ├── ble_scanner.py       # Descoberta de dispositivos BLE
-│   ├── midi_manager.py      # Saída MIDI
-│   ├── constants.py         # UUIDs BLE, enums, constantes musicais
-│   ├── config.py            # Salvar/carregar configuração
+│   ├── __main__.py              # Ponto de entrada e loop de eventos
+│   ├── main_window.py           # Janela principal (QTabWidget)
+│   ├── device_tab.py            # Aba por dispositivo (seletor, controles, status)
+│   ├── device_picker_dialog.py  # Scan BLE e seleção de dispositivo
+│   ├── protocol.py              # UUIDs BLE, decodificação de pacotes, helpers MIDI
+│   ├── notes_selector.py        # Widget seletor circular de notas
+│   ├── combo_box.py             # ComboBox customizado
+│   ├── instrument_dialog.py     # Seletor de instrumento
+│   ├── about_dialog.py          # Diálogo Sobre
+│   ├── splash_screen.py         # Tela de carregamento
+│   ├── ble_client.py            # Gerenciamento da conexão BLE
+│   ├── midi_manager.py          # Saída MIDI
+│   ├── constants.py             # UUIDs BLE, enums, constantes musicais
+│   ├── config.py                # Salvar/carregar configuração
 │   └── assets/
 │       ├── splash.png       # Logo GruPPEn (tela inicial)
 │       ├── icon.ico

@@ -54,7 +54,10 @@ Requires [PyInstaller](https://pyinstaller.org):
 
 ```bash
 pip install pyinstaller
+# Windows (semicolon separator)
 pyinstaller --noconfirm --windowed --onefile --icon=src/assets/icon.ico --name=Contato --add-data "src/assets;assets" src/__main__.py
+# Linux / macOS (colon separator)
+pyinstaller --noconfirm --windowed --onefile --icon=src/assets/icon.ico --name=Contato --add-data "src/assets:assets" src/__main__.py
 ```
 
 Output: `dist/Contato.exe`.
@@ -65,19 +68,20 @@ Output: `dist/Contato.exe`.
 contato_gui/
 ├── repertorio/              # Ready-to-use setups
 ├── src/
-│   ├── __main__.py          # Entry point
-│   ├── app.py               # Application init
-│   ├── main_window.py       # Main window
-│   ├── notes_selector.py    # Circular note selector widget
-│   ├── combo_box.py         # Custom ComboBox
-│   ├── instrument_dialog.py # Instrument picker
-│   ├── about_dialog.py      # About dialog
-│   ├── splash_screen.py     # Loading screen
-│   ├── ble_client.py        # BLE connection manager
-│   ├── ble_scanner.py       # BLE device discovery
-│   ├── midi_manager.py      # MIDI output
-│   ├── constants.py         # BLE UUIDs, enums, musical constants
-│   ├── config.py            # Save/load setup
+│   ├── __main__.py              # Entry point and event loop
+│   ├── main_window.py           # Main window (QTabWidget)
+│   ├── device_tab.py            # Per-device tab (selector, controls, status bar)
+│   ├── device_picker_dialog.py  # BLE scan and device selection
+│   ├── protocol.py              # BLE UUIDs, packet decoding, MIDI note helpers
+│   ├── notes_selector.py        # Circular note selector widget
+│   ├── combo_box.py             # Custom ComboBox
+│   ├── instrument_dialog.py     # Instrument picker
+│   ├── about_dialog.py          # About dialog
+│   ├── splash_screen.py         # Loading screen
+│   ├── ble_client.py            # BLE connection manager
+│   ├── midi_manager.py          # MIDI output
+│   ├── constants.py             # BLE UUIDs, enums, musical constants
+│   ├── config.py                # Save/load setup
 │   └── assets/
 │       ├── splash.png       # GruPPEn logo (loading screen)
 │       ├── icon.ico
